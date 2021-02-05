@@ -727,7 +727,7 @@ int _plug_parseuser(const sasl_utils_t *utils,
 		    const char *serverFQDN, const char *input)
 {
     int ret;
-    char *r;
+    char const *r;
 
     if(!user || !serverFQDN) {
 	PARAMERROR( utils );
@@ -750,15 +750,14 @@ int _plug_parseuser(const sasl_utils_t *utils,
     } else {
 	r++;
 	ret = _plug_strdup(utils, r, realm, NULL);
-	*--r = '\0';
-	*user = utils->malloc(r - input + 1);
+	*user = utils->malloc(r - input);
 	if (*user) {
-	    strncpy(*user, input, r - input +1);
+	    strncpy(*user, input, r - input);
+	    (*user)[r - input - 1] = '\0';
 	} else {
 	    MEMERROR( utils );
 	    ret = SASL_NOMEM;
 	}
-	*r = '@';
     }
 
     return ret;
