@@ -72,16 +72,10 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <netdb.h>
-#if TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# if HAVE_SYS_TIME_H
+#if HAVE_SYS_TIME_H
 #  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+# include <time.h>
 
 #include "auth_rimap.h"
 #include "utils.h"
@@ -379,7 +373,8 @@ static void *memmem(
 	if (big_len < little_len || little_len == 0 || big_len == 0)
 		return NULL;
 
-	while (big_len > 0) {
+    	size_t len_count = 0;
+	while (len_count < big_len) {
 		for (l = 0; l < little_len; l++) {
 			if (bp[l] != lp[l])
 				break;
@@ -387,6 +382,7 @@ static void *memmem(
 		if (l == little_len)
 			return (void *)bp;
 		bp++;
+		len_count++;
 	}
 
 	return NULL;

@@ -88,6 +88,14 @@
 #include <errno.h>
 #include <assert.h>
 
+#ifdef GSS_USE_CCACHE_STORE
+#include <sys/stat.h>
+#ifdef HAVE_GETPWNAM
+#include <pwd.h>
+#include <sys/types.h>
+#endif
+#endif
+
 /*****************************  Common Section  *****************************/
 
 static const char * GSSAPI_BLANK_STRING = "";
@@ -198,6 +206,9 @@ typedef struct context {
     char *authid; /* hold the authid between steps - server */
     const char *user;   /* hold the userid between steps - client */
     void *ctx_mutex; /* A per-context mutex */
+#ifdef GSS_USE_CCACHE_STORE
+    char* ccname;
+#endif
 } context_t;
 
 enum {
@@ -581,7 +592,14 @@ static int sasl_gss_free_context_contents(context_t *text)
 	(void) gss_release_name(&min_stat,&text->server_name);
 	text->server_name = GSS_C_NO_NAME;
     }
-    
+
+#ifdef GSS_USE_CCACHE_STORE
+    if (text->ccname) {
+      free(text->ccname);
+      text->ccname = NULL;
+    }
+#endif
+
     if ( text->server_creds != GSS_C_NO_CREDENTIAL) {
 	(void) gss_release_cred(&min_stat, &text->server_creds);
 	text->server_creds = GSS_C_NO_CREDENTIAL;
@@ -811,6 +829,270 @@ gssapi_server_mech_new(void *glob_context,
     return SASL_OK;
 }
 
+#ifdef GSS_USE_CCACHE_STORE
+static char* resolve_ccname_from_env(context_t* text) {
+    char* ccname = strdup(getenv("KRB5CCNAME"));
+    if (NULL == ccname) {
+        text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                              "GSSAPI error: out of memory, or KRB5CCNAME unset");
+    }
+    text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                          "GSSAPI warning: using KRB5CCNAME for ccache store");
+    return ccname;
+}
+
+static char* strsubst(context_t* text, const char* haystack, const char* needle, const char* subst) {
+    const size_t haystack_len = strlen(haystack);
+    const size_t needle_len = strlen(needle);
+    const size_t subst_len = strlen(subst);
+    const size_t dest_len = haystack_len - needle_len + subst_len;
+    const char* needle_ptr = strstr(haystack, needle);
+    const size_t pre_needle_len = needle_ptr - haystack;
+    char* d;
+
+    if ((NULL == haystack) || (NULL == needle) || (NULL == subst)) {
+        text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                              "GSSAPI error: Bad ccache store format");
+        return NULL;
+    }
+
+    if (NULL == (d = malloc(dest_len + 1))) {
+        text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                              "GSSAPI error: Out of memory processing ccache store format");
+        return NULL;
+    }
+
+    strncpy(d, haystack, pre_needle_len);
+    d[pre_needle_len] = 0;
+    strcat(d, subst);
+    strcat(d, &haystack[pre_needle_len + needle_len]);
+
+    return d;
+}
+
+static char* resolve_ccache_store(context_t* text, gss_buffer_desc* username_buf, const char* ccache) {
+    char* username = NULL;
+    char* ccname = NULL;
+    char* ccache_copy = NULL;
+    char* needle;
+    
+    if (NULL == ccache) {
+        goto noccache;
+    }
+
+    /* Empty string will result in default value */
+    if (0 == strcmp("", ccache)) {
+        goto noccache;
+    }
+
+    if (NULL == username_buf) {
+        goto sanity_check_failed;
+    }
+
+    if (NULL == (ccache_copy = strdup(ccache))) {
+        text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                              "GSSAPI error: out of memory");
+        goto malloc_failed;
+    }
+
+    if (NULL == (username = strndup(username_buf->value, username_buf->length))) {
+        text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                              "GSSAPI error: out of memory");
+        goto malloc_failed;
+    }
+
+    while (NULL != (needle = strchr(ccache_copy, '%'))) {
+        if (NULL != ccname) {
+            /* Every iteration starts with a fresh destination string */
+          free(ccname);
+          ccname = NULL;
+        }
+
+        switch (needle[1]) {
+        case 'u': {
+#ifdef HAVE_GETPWNAM
+            OM_uint32 maj;
+            OM_uint32 min;
+            gss_buffer_desc local_name = GSS_C_EMPTY_BUFFER;
+            char* username_wo_realm;
+            char uid_str[100];
+            struct passwd* pwd;
+            maj = gss_localname(&min, text->client_name, text->mech_type, &local_name);
+            if (GSS_S_COMPLETE != maj) {
+                text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                      "GSSAPI error: ccache store with %%u can not be resolved for '%s' while stripping realm", username);
+                goto parsing_failed;
+            }
+            username_wo_realm = strndup(local_name.value, local_name.length);
+            gss_release_buffer(&min, &local_name);
+            if (NULL == username_wo_realm) {
+                text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                      "GSSAPI error: out of memory");
+                goto parsing_failed;
+            }
+            pwd = getpwnam(username_wo_realm);
+            free(username_wo_realm);
+            if (NULL == pwd) {
+                text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                      "GSSAPI error: ccache store with %%u can not be resolved for '%s'", username);
+                goto parsing_failed;
+            }
+            sprintf(uid_str, "%d", pwd->pw_uid);
+            if (NULL == (ccname = strsubst(text, ccache_copy, "%u", uid_str))) {
+                goto parsing_failed;
+            }
+#else
+            text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                  "GSSAPI error: %%u is unsupported in ccache store format");
+            goto parsing_failed;
+#endif
+            break;
+        }
+        case 'U': {
+            ccname = strsubst(text, ccache_copy, "%U", username);
+            break;
+        }
+        case 'e': {
+#ifdef HAVE_GETEUID
+            char euid_str[100];
+            uid_t euid = geteuid();
+            sprintf(euid_str, "%ul", euid);
+            if (NULL == (ccname = strsubst(text, ccache_copy, "%e", euid_str))) {
+                goto parsing_failed;
+            }
+#else
+            text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                  "GSSAPI error: %%e is unsupported in ccache store format");
+            goto parsing_failed;
+#endif
+            break;
+        }
+        case 'E': {
+#ifdef HAVE_GETLOGIN_R
+            char server_username[100];
+            getlogin_r(server_username, sizeof(server_username));
+            if (NULL == (ccname = strsubst(text, ccache_copy, "%E", server_username))) {
+                goto parsing_failed;
+            }
+#else
+            text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                  "GSSAPI error: %%E is unsupported in ccache store format");
+            goto parsing_failed;
+#endif
+            break;
+        }
+        case 'p': {
+#ifdef HAVE_GETPID
+            char pid_str[100];
+            pid_t pid;
+            pid = getpid();
+            sprintf(pid_str, "%d", pid);
+            if (NULL == (ccname = strsubst(text, ccache_copy, "%p", pid_str))) {
+                goto parsing_failed;
+            }
+#else
+            text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                  "GSSAPI error: %%p is unsupported in ccache store format");
+            goto parsing_failed;
+#endif
+            break;
+        }
+        default:
+            text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                  "GSSAPI error: invalid ccache store format");
+            goto invalid_ccache_format;
+            break;
+        }
+
+        free(ccache_copy);
+        if (NULL != ccname) {
+            ccache_copy = strdup(ccname);
+            if (NULL == ccache_copy) {
+                text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                      "GSSAPI error: out of memory");
+                goto malloc_failed;
+            }
+        }
+    }
+
+    if ((NULL == ccname) && (NULL != ccache)) {
+        if (NULL == (ccname = strdup(ccache))) {
+            text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                                  "GSSAPI error: out of memory");
+            goto malloc_failed;
+        }
+    }
+
+    goto ok;
+ invalid_ccache_format:
+ malloc_failed:
+ sanity_check_failed:
+ parsing_failed:
+    if (NULL != username) {
+        free(username);
+        username = NULL;
+    }
+    if (NULL != ccname) {
+        free(ccname);
+        ccname = NULL;
+    }
+ noccache:
+    if (NULL == ccname) {
+        ccache = resolve_ccname_from_env(text);
+    }
+ ok:
+    if (NULL != ccache_copy) {
+        free(ccache_copy);
+    }
+
+    return ccname;
+}
+
+static char *store_client_credentials(context_t* text, gss_cred_id_t* client_credentials, gss_buffer_desc* username_buf, const char* ccache) {
+    gss_key_value_element_desc element;
+    gss_key_value_set_desc store;
+    char* ccname = NULL;
+    OM_uint32 maj_stat;
+    OM_uint32 min_stat;
+
+    if (NULL == (ccname = resolve_ccache_store(text, username_buf, ccache))) {
+        text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                              "GSSAPI error: unable to generate krb5cc store name");
+        goto resolve_ccache_store_failed;
+    }
+
+    element.key = "ccache";
+    element.value = ccname;
+    store.elements = &element;
+    store.count = 1;
+
+    maj_stat = gss_store_cred_into(&min_stat,
+                                   *client_credentials,
+                                   GSS_C_INITIATE,
+                                   GSS_C_NULL_OID,
+                                   1,
+                                   1,
+                                   &store,
+                                   NULL,
+                                   NULL);
+
+    if (GSS_S_COMPLETE != maj_stat) {
+        text->utils->seterror(text->utils->conn, SASL_LOG_ERR,
+                              "GSSAPI error: unable to store credentials in krb5cc store");
+        goto gss_store_cred_into_failed;
+    }
+
+    goto ok;
+
+ gss_store_cred_into_failed:
+    free(ccname);
+    ccname = NULL;
+ resolve_ccache_store_failed:
+ ok:
+    return ccname;
+}
+#endif
+
 static int 
 gssapi_server_mech_authneg(context_t *text,
 			   sasl_server_params_t *params,
@@ -879,15 +1161,45 @@ gssapi_server_mech_authneg(context_t *text,
 
 	/* If caller didn't provide creds already */
 	if ( server_creds == GSS_C_NO_CREDENTIAL) {
+#ifdef GSS_USE_LOAD_FROM
+            const sasl_utils_t *utils = text->utils;
+            unsigned int rl; /* Required storage by getopt() */
+            char* keytab = NULL; /* The configured credentials cache file path */
+            utils->getopt(utils->getopt_context, "GSSAPI", "keytab", (const char**)&keytab, &rl);
+#endif
 	    GSS_LOCK_MUTEX_CTX(params->utils, text);
-	    maj_stat = gss_acquire_cred(&min_stat, 
-					text->server_name,
-					GSS_C_INDEFINITE, 
-					GSS_C_NO_OID_SET,
-					GSS_C_ACCEPT,
-					&text->server_creds, 
-					NULL, 
-					NULL);
+#ifdef GSS_USE_LOAD_FROM
+            if (keytab != NULL) {
+                gss_key_value_element_desc keytab_element = {.key = "keytab", .value = keytab};
+                gss_key_value_element_desc elements[1] = {keytab_element};
+                gss_key_value_set_desc cred_store = {.elements = elements, .count = 1};
+
+                params->utils->log(params->utils->conn, SASL_LOG_DEBUG,
+                                   "GSSAPI server acquire cred from %s", keytab);
+
+                maj_stat = gss_acquire_cred_from(&min_stat,
+                                                 text->server_name,
+                                                 GSS_C_INDEFINITE,
+                                                 GSS_C_NO_OID_SET,
+                                                 GSS_C_ACCEPT,
+                                                 &cred_store,
+                                                 &text->server_creds,
+                                                 NULL,
+                                                 NULL);
+            }
+            else
+#endif
+            {
+                maj_stat = gss_acquire_cred(&min_stat,
+                                            text->server_name,
+                                            GSS_C_INDEFINITE,
+                                            GSS_C_NO_OID_SET,
+                                            GSS_C_ACCEPT,
+                                            &text->server_creds, 
+                                            NULL,
+                                            NULL);
+            }
+
 	    GSS_UNLOCK_MUTEX_CTX(params->utils, text);
 
 	    if (GSS_ERROR(maj_stat)) {
@@ -904,7 +1216,7 @@ gssapi_server_mech_authneg(context_t *text,
 	real_input_token.length = clientinlen;
     }
 
-    if (params->cbinding != NULL) {
+    if ((params->props.security_flags & SASL_SEC_NONSTD_CBIND) && params->cbinding != NULL) {
         cb.application_data.length = params->cbinding->len;
         cb.application_data.value = params->cbinding->data;
         bindings = &cb;
@@ -990,7 +1302,10 @@ gssapi_server_mech_authneg(context_t *text,
     } else {
 	text->qop = LAYER_NONE | LAYER_INTEGRITY | LAYER_CONFIDENTIALITY;
     }
-
+#ifdef GSS_USE_CCACHE_STORE
+    /* TODO: This should maybe depend on "pass_credentials" (server-side), or Kerberos token attributes */
+    params->props.security_flags |= SASL_SEC_PASS_CREDENTIALS; /* Force delegation flag */
+#endif
     if ((params->props.security_flags & SASL_SEC_PASS_CREDENTIALS) &&
 	(!(out_flags & GSS_C_DELEG_FLAG) ||
 	 text->client_creds == GSS_C_NO_CREDENTIAL) ) 
@@ -1100,6 +1415,31 @@ gssapi_server_mech_authneg(context_t *text,
 	ret = SASL_NOMEM;
 	goto cleanup;
     }
+
+#ifdef GSS_USE_CCACHE_STORE
+    if (GSS_C_NO_CREDENTIAL != text->client_creds) {
+        const char* ccache = NULL;
+        const sasl_utils_t *utils = text->utils;
+        unsigned int rl;
+        utils->getopt(utils->getopt_context, "GSSAPI", "ccache_store", (const char**)&ccache, &rl);
+        if (NULL == ccache) {
+            text->ccname = NULL;
+        }
+        else {
+            text->ccname = store_client_credentials(text, &(text->client_creds),
+                                                    &name_token, ccache);
+            if (NULL == text->ccname) {
+                params->utils->log(params->utils->conn, SASL_LOG_DEBUG,
+                                   "GSSAPI server could not store credentials cache %s", ccache);
+                /* Non breaking error, users will just not be able to authenticate to underlying services */
+            }
+            else {
+                params->utils->log(params->utils->conn, SASL_LOG_DEBUG,
+                                   "GSSAPI server saved credentials cache %s", ccache);
+            }
+        }
+    }
+#endif
 
     if (text->http_mode) {
 	/* HTTP doesn't do any ssf negotiation */
@@ -1444,9 +1784,6 @@ gssapi_server_mech_step(void *conn_context,
 
     if (text == NULL) return SASL_BADPROT;
 
-    params->utils->log(params->utils->conn, SASL_LOG_DEBUG,
-		       "GSSAPI server step %d\n", text->state);
-
     switch (text->state) {
 
     case SASL_GSSAPI_STATE_AUTHNEG:
@@ -1496,6 +1833,9 @@ gssapi_server_mech_step(void *conn_context,
 	}
 
 	oparams->doneflag = 1;
+    } else {
+        params->utils->log(params->utils->conn, SASL_LOG_DEBUG,
+		           "GSSAPI server step failed: %d\n", text->state);
     }
     
     return ret;
@@ -1773,9 +2113,15 @@ static int gssapi_client_mech_step(void *conn_context,
 
 	/* Setup req_flags properly */
 	req_flags = GSS_C_MUTUAL_FLAG | GSS_C_SEQUENCE_FLAG;
-	if (params->props.max_ssf > params->external_ssf) {
-	    /* We are requesting a security layer */
+        if (text->mech_type == NULL) {
+            /* in SASL/GSSAPI RFC4752 requires the INTEG flag MUST be set to
+             * TRUE in all cases */
 	    req_flags |= GSS_C_INTEG_FLAG;
+        }
+	/* We are requesting a security layer */
+	if (params->props.max_ssf > params->external_ssf) {
+            /* Add integrity if explicity requested */
+            req_flags |= GSS_C_INTEG_FLAG;
 	    /* Any SSF bigger than 1 is confidentiality. */
 	    /* Let's check if the client of the API requires confidentiality,
 	       and it wasn't already provided by an external layer */
@@ -1783,13 +2129,59 @@ static int gssapi_client_mech_step(void *conn_context,
 		/* We want to try for privacy */
 		req_flags |= GSS_C_CONF_FLAG;
 	    }
-	}
+#ifdef HAVE_GSS_KRB5_CRED_NO_CI_FLAGS_X
+        /* The krb5 mechanism automatically adds INTEG and CONF flags even when
+         * not specified, this has the effect of rendering explicit requests
+         * of no confidentiality and integrity via setting maxssf 0 moot.
+         * However to interoperate with Windows machines it needs to be
+         * possible to unset these flags as Windows machines refuse to allow
+         * two layers (say TLS and GSSAPI) to both provide these services.
+         * So if we do not suppress these flags a SASL/GSS-SPNEGO negotiation
+         * over, say, LDAPS will fail against Windows Servers */
+	} else if (params->props.max_ssf <= 1) {
+            gss_buffer_desc empty_buffer = GSS_C_EMPTY_BUFFER;
+            if (client_creds == GSS_C_NO_CREDENTIAL) {
+                gss_OID_set_desc mechs = { 0 };
+                gss_OID_set desired_mechs = GSS_C_NO_OID_SET;
+                if (text->mech_type != GSS_C_NO_OID) {
+                    mechs.count = 1;
+                    mechs.elements = text->mech_type;
+                    desired_mechs = &mechs;
+                }
 
+                maj_stat = gss_acquire_cred(&min_stat, GSS_C_NO_NAME,
+                                            GSS_C_INDEFINITE, desired_mechs,
+                                            GSS_C_INITIATE,
+                                            &text->client_creds, NULL, NULL);
+                if (GSS_ERROR(maj_stat)) {
+                    sasl_gss_seterror(text->utils, maj_stat, min_stat);
+                    sasl_gss_free_context_contents(text);
+                    return SASL_FAIL;
+                }
+                client_creds = text->client_creds;
+            }
+
+            maj_stat = gss_set_cred_option(&min_stat, &client_creds,
+                                           (gss_OID)GSS_KRB5_CRED_NO_CI_FLAGS_X,
+                                            &empty_buffer);
+            if (GSS_ERROR(maj_stat)) {
+                sasl_gss_seterror(text->utils, maj_stat, min_stat);
+                sasl_gss_free_context_contents(text);
+                return SASL_FAIL;
+            }
+#endif
+        }
+
+
+#ifdef GSS_USE_CCACHE_STORE
+        /* TODO: This should maybe depend on "pass_credentials" (server-side), or Kerberos token attributes */
+        params->props.security_flags |= SASL_SEC_PASS_CREDENTIALS;
+#endif
 	if (params->props.security_flags & SASL_SEC_PASS_CREDENTIALS) {
 	    req_flags = req_flags |  GSS_C_DELEG_FLAG;
 	}
 
-        if (params->cbinding != NULL) {
+	if ((params->props.security_flags & SASL_SEC_NONSTD_CBIND) && params->cbinding != NULL) {
             cb.application_data.length = params->cbinding->len;
             cb.application_data.value = params->cbinding->data;
             bindings = &cb;

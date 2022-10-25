@@ -4,7 +4,7 @@
 Building Cyrus SASL on Windows
 ==============================
 
-Note, that Cyrus SASL on Windows is still laregely a "work in progress".
+Note, that Cyrus SASL on Windows is still largely a "work in progress".
 So far only the main library, plugins (SASLDB using SleepyCat, no MySQL)
 and several applications (see the list below) can be built. In particular,
 saslauthd doesn't compile on Windows.
@@ -24,12 +24,6 @@ SleepyCat
     SleepyCat's include files and libraries are required to buil SASLDB plugin,
     saslpasswd2.exe and sasldblistusers2.exe. We have tested SleepyCat 4.1.X-4.4.X.
 
-Cygwin (for building from GIT)
-    The `Cygwin <http://www.cygwin.com/>`_ Unix-compatibility
-    environment to create the ``_init.c`` files needed for dynamic
-    loading. Cygwin is *not* required for building from our tar
-    distribution.
-
 Step by step
 ============
 
@@ -39,10 +33,10 @@ and the sources are in ``C:\SASL``.
 Preparing to build (GIT only!)
 ------------------------------
 
-Start a cygwin shell and create the dynamic loading stubs::
+Create the dynamic loading stubs::
 
-    % cd /cygdrive/c/sasl/plugins
-    % sh makeinit.sh
+    % cd win32
+    % PowerShell.exe -ExecutionPolicy Bypass -File makeinit.ps1
 
 Building using NMake
 --------------------
@@ -50,7 +44,7 @@ Building using NMake
 Open a "Windows 2000 build environment" from the SDK's Start Menu and
 use ``nmake /f NTMakefile`` to build.
 
-To build a debug verison, use ``nmake /f NTMakefile
+To build a debug version, use ``nmake /f NTMakefile
 CFG=Debug``. For a production version, ``nmake /f NTMakefile
 CFG=Release``. If you don't specify CFG parameter, production
 version will be built by default.

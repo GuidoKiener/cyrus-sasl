@@ -1629,7 +1629,7 @@ char *lak_error(
         case LAK_CONNECT_FAIL:
             return "Cannot connect to ldap server (configuration error)";
         default:
-            return "Unknow error";
+            return "Unknown error";
     }
 }
 
@@ -1806,18 +1806,36 @@ static int lak_check_hashed(
 		return rc;
 	}
 
-	EVP_DigestInit(mdctx, md);
-	EVP_DigestUpdate(mdctx, passwd, strlen(passwd));
-	if (hrock->salted) {
-		EVP_DigestUpdate(mdctx, &cred[EVP_MD_size(md)],
-				 clen - EVP_MD_size(md));
+	rc = EVP_DigestInit(mdctx, md);
+	if (rc != 1) {
+		rc = LAK_FAIL;
+		goto done;
 	}
-	EVP_DigestFinal(mdctx, digest, NULL);
-	EVP_MD_CTX_free(mdctx);
+	rc = EVP_DigestUpdate(mdctx, passwd, strlen(passwd));
+	if (rc != 1) {
+		rc = LAK_FAIL;
+		goto done;
+	}
+	if (hrock->salted) {
+		rc = EVP_DigestUpdate(mdctx, &cred[EVP_MD_size(md)],
+				      clen - EVP_MD_size(md));
+		if (rc != 1) {
+		    rc = LAK_FAIL;
+		    goto done;
+		}
+	}
+	rc = EVP_DigestFinal(mdctx, digest, NULL);
+	if (rc != 1) {
+		rc = LAK_FAIL;
+		goto done;
+	}
 
 	rc = memcmp((char *)cred, (char *)digest, EVP_MD_size(md));
+	rc = rc ? LAK_INVALID_PASSWORD : LAK_OK;
+done:
+	EVP_MD_CTX_free(mdctx);
 	free(cred);
-	return rc ? LAK_INVALID_PASSWORD : LAK_OK;
+	return rc;
 }
 
 #endif /* HAVE_OPENSSL */

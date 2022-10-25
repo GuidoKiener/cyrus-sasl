@@ -43,6 +43,8 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef WIN32
+
 #include <config.h>
 #ifdef HAVE_DLFCN_H
 #include <dlfcn.h>
@@ -211,6 +213,8 @@ int _sasl_locate_entry(void *library, const char *entryname,
     *entry_point = NULL;
     *entry_point = dlsym(library, adj_entryname);
     if (*entry_point == NULL) {
+	/* clear error from dlsym() */
+	dlerror();
 #if 0 /* This message appears to confuse people */
 	_sasl_log(NULL, SASL_LOG_DEBUG,
 		  "unable to get entry point %s: %s", adj_entryname,
@@ -567,3 +571,9 @@ _sasl_done_with_plugins(void)
 #endif /* DO_DLOPEN */
     return SASL_OK;
 }
+
+#else /*WIN32*/
+
+#include "windlopen.c"
+
+#endif /*WIN32*/

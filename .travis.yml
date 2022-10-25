@@ -4,6 +4,9 @@ group: edge
 os:
   - linux
   - osx
+
+dist: focal
+osx_image: xcode12.5
 compiler: gcc
 
 addons:

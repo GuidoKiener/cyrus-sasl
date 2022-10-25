@@ -450,7 +450,7 @@ main(int argc, char *argv[])
   if (errflag) {
     fprintf(stderr, "%s: Usage: %s [-b min=N,max=N] [-e ssf=N,id=ID] [-m MECH] [-f FLAGS] [-i local=IP,remote=IP] [-p PATH] [-d DOM] [-u DOM] [-s NAME]\n"
 	    "\t-b ...\t#bits to use for encryption\n"
-	    "\t\tmin=N\tminumum #bits to use (1 => integrity)\n"
+	    "\t\tmin=N\tminimum #bits to use (1 => integrity)\n"
 	    "\t\tmax=N\tmaximum #bits to use\n"
 	    "\t-e ...\tassume external encryption\n"
 	    "\t\tssf=N\texternal mech provides N bits of encryption\n"
@@ -622,9 +622,9 @@ main(int argc, char *argv[])
 	result=sasl_decode(conn,buf,len,&recv_data,&recv_len);
  	if (result != SASL_OK)
       saslfail(result, "sasl_encode", NULL);
-    printf("recieved decoded message '%s'\n",recv_data);
+    printf("received decoded message '%s'\n",recv_data);
     if(strcmp(recv_data,CLIENT_MSG1)!=0)
-    	saslfail(1,"recive decoded server message",NULL);
+        saslfail(1,"receive decoded server message",NULL);
  }
 
 #ifdef WIN32

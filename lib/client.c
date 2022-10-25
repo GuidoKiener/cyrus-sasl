@@ -398,12 +398,12 @@ int sasl_client_new(const char *service,
 		    sasl_conn_t **pconn)
 {
   int result;
-  char name[MAXFQDNLEN];
+  char name[256];
   sasl_client_conn_t *conn;
   sasl_utils_t *utils;
   sasl_getopt_t *getopt;
   void *context;
-  const char *mlist = NULL;
+  const char *mlist = NULL, *log_level;
   int plus = 0;
 
   if (_sasl_client_active == 0) return SASL_NOTINIT;
@@ -445,9 +445,12 @@ int sasl_client_new(const char *service,
   utils->conn= *pconn;
   conn->cparams->utils = utils;
 
+  log_level = NULL;
   if(_sasl_getcallback(*pconn, SASL_CB_GETOPT, (sasl_callback_ft *)&getopt, &context) == SASL_OK) {
+    getopt(context, NULL, "log_level", &log_level, NULL);
     getopt(context, NULL, "client_mech_list", &mlist, NULL);
   }
+  conn->cparams->log_level = log_level ? atoi(log_level) : SASL_LOG_ERR;
 
   /* if we have a client_mech_list, create ordered list of
      available mechanisms for this conn */
@@ -512,9 +515,8 @@ int sasl_client_new(const char *service,
   
   /* get the clientFQDN (serverFQDN was set in _sasl_conn_init) */
   memset(name, 0, sizeof(name));
-  if (get_fqhostname (name, MAXFQDNLEN, 0) != 0) {
-      return (SASL_FAIL);
-  }
+  gethostname(name, sizeof(name));
+  name[sizeof(name)-1] = '\0';
 
   result = _sasl_strdup(name, &conn->clientFQDN, NULL);
 

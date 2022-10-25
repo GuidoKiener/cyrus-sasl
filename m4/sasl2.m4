@@ -289,6 +289,19 @@ if test "$gssapi" != no; then
 
   cmu_save_LIBS="$LIBS"
   LIBS="$LIBS $GSSAPIBASE_LIBS"
+  if test "$ac_cv_header_gssapi_gssapi_krb5_h" = "yes"; then
+    AC_CHECK_DECL(GSS_KRB5_CRED_NO_CI_FLAGS_X,
+                  [AC_DEFINE(HAVE_GSS_KRB5_CRED_NO_CI_FLAGS_X,1,
+                             [Define if your GSSAPI implementation supports GSS_KRB5_CRED_NO_CI_FLAGS_X])],,
+                  [
+                    AC_INCLUDES_DEFAULT
+                    #include <gssapi/gssapi_krb5.h>
+                    ])
+  fi
+  LIBS="$cmu_save_LIBS"
+
+  cmu_save_LIBS="$LIBS"
+  LIBS="$LIBS $GSSAPIBASE_LIBS"
   AC_CHECK_FUNCS(gss_get_name_attribute)
   LIBS="$cmu_save_LIBS"
 
@@ -313,10 +326,10 @@ if test "$gssapi" != no; then
   fi
   LIBS="$cmu_save_LIBS"
 
-  cmu_save_LIBS="$LIBS"
-  LIBS="$LIBS $GSSAPIBASE_LIBS"
-  AC_MSG_CHECKING([for SPNEGO support in GSSAPI libraries])
-  AC_TRY_RUN([
+  AC_CACHE_CHECK([for SPNEGO support in GSSAPI libraries],[ac_cv_gssapi_supports_spnego],[
+    cmu_save_LIBS="$LIBS"
+    LIBS="$LIBS $GSSAPIBASE_LIBS"
+    AC_TRY_RUN([
 #ifdef HAVE_GSSAPI_H
 #include <gssapi.h>
 #else
@@ -337,11 +350,12 @@ int main(void)
 
     return (!have_spnego);  // 0 = success, 1 = failure
 }
-],	
-	[ AC_DEFINE(HAVE_GSS_SPNEGO,,[Define if your GSSAPI implementation supports SPNEGO])
-	AC_MSG_RESULT(yes) ],
-	AC_MSG_RESULT(no))
-  LIBS="$cmu_save_LIBS"
+],[ac_cv_gssapi_supports_spnego=yes],[ac_cv_gssapi_supports_spnego=no])
+    LIBS="$cmu_save_LIBS"
+  ])
+  AS_IF([test "$ac_cv_gssapi_supports_spnego" = yes],[
+    AC_DEFINE(HAVE_GSS_SPNEGO,,[Define if your GSSAPI implementation supports SPNEGO])
+  ])
 
 else
   AC_MSG_RESULT([disabled])

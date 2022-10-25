@@ -61,13 +61,22 @@ static DB * g_db = NULL;
 #endif
 
 /*
- * Open the database
+ * Open the database. The pathname for the database can come from 
+ * one of three places:
+ * 
+ * 1) The value of SASL_DB_PATH.
+ * 2) The registry value of the string SASL_DB_PATH_ATTR. See
+ *    _sasl_get_registry_value() for a desciption of the semantics.
+ * 3) The value returned from the sasldb_path callback function.
+ *
+ * The last value provided wins.
  */
 static int berkeleydb_open(const sasl_utils_t *utils,
 			   sasl_conn_t *conn,
 			   int rdwr, DB **mbdb)
 {
-    const char *path = SASL_DB_PATH;
+    const char *path;
+    const char *p;
     int ret;
     int flags;
     void *cntxt;
@@ -80,9 +89,11 @@ static int berkeleydb_open(const sasl_utils_t *utils,
     }
 #endif
 
+    ret = _sasldb_getpath(utils, &path);
+    if (ret) return ret;
+
     if (utils->getcallback(conn, SASL_CB_GETOPT,
 			   (sasl_callback_ft *)&getopt, &cntxt) == SASL_OK) {
-	const char *p;
 	if (getopt(cntxt, NULL, "sasldb_path", &p, NULL) == SASL_OK 
 	    && p != NULL && *p != 0) {
 	    path = p;
@@ -126,6 +137,7 @@ static int berkeleydb_open(const sasl_utils_t *utils,
 		   "unable to open Berkeley db %s: %s",
 		   path, db_strerror(ret));
 	utils->seterror(conn, SASL_NOLOG, "Unable to open DB");
+	SASLDB_FREEPATH(utils, path);
 	return SASL_FAIL;
     }
 
@@ -133,6 +145,7 @@ static int berkeleydb_open(const sasl_utils_t *utils,
     /* Save the DB handle for later use */
     g_db = *mbdb;
 #endif
+    SASLDB_FREEPATH(utils, path);
     return SASL_OK;
 }
 
@@ -358,7 +371,7 @@ int _sasldb_putdata(const sasl_utils_t *utils,
   return result;
 }
 
-int _sasl_check_db(const sasl_utils_t *utils,
+LIBSASL_API int _sasl_check_db(const sasl_utils_t *utils,
 		   sasl_conn_t *conn)
 {
     const char *path = SASL_DB_PATH;
@@ -412,7 +425,7 @@ typedef struct berkeleydb_handle
     DBC *cursor;
 } berkleyhandle_t;
 
-sasldb_handle _sasldb_getkeyhandle(const sasl_utils_t *utils,
+LIBSASL_API sasldb_handle _sasldb_getkeyhandle(const sasl_utils_t *utils,
 				   sasl_conn_t *conn) 
 {
     int ret;
@@ -447,7 +460,7 @@ sasldb_handle _sasldb_getkeyhandle(const sasl_utils_t *utils,
     return (sasldb_handle)handle;
 }
 
-int _sasldb_getnextkey(const sasl_utils_t *utils __attribute__((unused)),
+LIBSASL_API int _sasldb_getnextkey(const sasl_utils_t *utils __attribute__((unused)),
 		       sasldb_handle handle, char *out,
 		       const size_t max_out, size_t *out_len) 
 {
@@ -501,7 +514,7 @@ int _sasldb_getnextkey(const sasl_utils_t *utils __attribute__((unused)),
 }
 
 
-int _sasldb_releasekeyhandle(const sasl_utils_t *utils,
+LIBSASL_API int _sasldb_releasekeyhandle(const sasl_utils_t *utils,
 			     sasldb_handle handle) 
 {
     berkleyhandle_t *dbh = (berkleyhandle_t *)handle;

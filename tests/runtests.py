@@ -6,6 +6,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from string import Template
 
@@ -149,11 +150,12 @@ def gssapi_basic_test(kenv):
                 srv.returncode, srv.stderr.read().decode('utf-8')))
     except Exception as e:
         print("FAIL: {}".format(e))
-        return
+        return 1
 
     print("PASS: CLI({}) SRV({})".format(
         cli.stdout.read().decode('utf-8').strip(),
         srv.stdout.read().decode('utf-8').strip()))
+    return 0
 
 def gssapi_channel_binding_test(kenv):
     try:
@@ -178,11 +180,12 @@ def gssapi_channel_binding_test(kenv):
                 srv.returncode, srv.stderr.read().decode('utf-8')))
     except Exception as e:
         print("FAIL: {}".format(e))
-        return
+        return 1
 
     print("PASS: CLI({}) SRV({})".format(
         cli.stdout.read().decode('utf-8').strip(),
         srv.stdout.read().decode('utf-8').strip()))
+    return 0
 
 def gssapi_channel_binding_mismatch_test(kenv):
     result = "FAIL"
@@ -212,11 +215,70 @@ def gssapi_channel_binding_mismatch_test(kenv):
                 cli.returncode, cli_err, srv.returncode, srv_err))
     except Exception as e:
         print("{}: {}".format(result, e))
-        return
+        return 0
 
     print("FAIL: This test should fail [CLI({}) SRV({})]".format(
         cli.stdout.read().decode('utf-8').strip(),
         srv.stdout.read().decode('utf-8').strip()))
+    return 1
+
+def gss_spnego_basic_test(kenv):
+    try:
+        srv = subprocess.Popen(["../tests/t_gssapi_srv", "-N"],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=kenv)
+        srv.stdout.readline() # Wait for srv to say it is ready
+        cli = subprocess.Popen(["../tests/t_gssapi_cli", "-N"],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=kenv)
+        try:
+            cli.wait(timeout=5)
+            srv.wait(timeout=5)
+        except Exception as e:
+            print("Failed on {}".format(e));
+            cli.kill()
+            srv.kill()
+        if cli.returncode != 0 or srv.returncode != 0:
+            raise Exception("CLI ({}): {} --> SRV ({}): {}".format(
+                cli.returncode, cli.stderr.read().decode('utf-8'),
+                srv.returncode, srv.stderr.read().decode('utf-8')))
+    except Exception as e:
+        print("FAIL: {}".format(e))
+        return 1
+
+    print("PASS: CLI({}) SRV({})".format(
+        cli.stdout.read().decode('utf-8').strip(),
+        srv.stdout.read().decode('utf-8').strip()))
+    return 0
+
+def gss_spnego_zeromaxssf_test(kenv):
+    try:
+        srv = subprocess.Popen(["../tests/t_gssapi_srv", "-N", "-z"],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=kenv)
+        srv.stdout.readline() # Wait for srv to say it is ready
+        cli = subprocess.Popen(["../tests/t_gssapi_cli", "-N", "-z"],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=kenv)
+        try:
+            cli.wait(timeout=5)
+            srv.wait(timeout=5)
+        except Exception as e:
+            print("Failed on {}".format(e));
+            cli.kill()
+            srv.kill()
+        if cli.returncode != 0 or srv.returncode != 0:
+            raise Exception("CLI ({}): {} --> SRV ({}): {}".format(
+                cli.returncode, cli.stderr.read().decode('utf-8'),
+                srv.returncode, srv.stderr.read().decode('utf-8')))
+    except Exception as e:
+        print("FAIL: {}".format(e))
+        return 1
+
+    print("PASS: CLI({}) SRV({})".format(
+        cli.stdout.read().decode('utf-8').strip(),
+        srv.stdout.read().decode('utf-8').strip()))
+    return 0
 
 def gssapi_tests(testdir):
     """ SASL/GSSAPI Tests """
@@ -225,20 +287,121 @@ def gssapi_tests(testdir):
     #print("KDC: {}, ENV: {}".format(kdc, kenv))
     kenv['KRB5_TRACE'] = os.path.join(testdir, 'trace.log')
 
+    err = 0
+
     print('GSSAPI BASIC:')
     print('    ', end='')
-    gssapi_basic_test(kenv)
+    err += gssapi_basic_test(kenv)
 
     print('GSSAPI CHANNEL BINDING:')
     print('    ', end='')
-    gssapi_channel_binding_test(kenv)
+    err += gssapi_channel_binding_test(kenv)
 
     print('GSSAPI CHANNEL BINDING MISMTACH:')
     print('    ', end='')
-    gssapi_channel_binding_mismatch_test(kenv)
+    err += gssapi_channel_binding_mismatch_test(kenv)
+
+    print('GSS-SPNEGO BASIC:')
+    print('    ', end='')
+    err += gss_spnego_basic_test(kenv)
+
+    print('GSS-SPNEGO 0 MAXSSF:')
+    print('    ', end='')
+    err += gss_spnego_zeromaxssf_test(kenv)
 
     os.killpg(kdc.pid, signal.SIGTERM)
+    return err
 
+def setup_plain(testdir):
+    """ Create sasldb file """
+    sasldbfile = os.path.join(testdir, 'testsasldb.db')
+
+    sasldbenv = {'SASL_PATH': os.path.join(testdir, '../../plugins/.libs'),
+                 'LD_LIBRARY_PATH' : os.path.join(testdir, '../../lib/.libs')}
+
+    passwdprog = os.path.join(testdir, '../../utils/saslpasswd2')
+
+    echo = subprocess.Popen(('echo', '1234567'), stdout=subprocess.PIPE)
+    subprocess.check_call([
+        passwdprog, "-f", sasldbfile, "-c", "test",
+        "-u", "host.realm.test", "-p"
+        ], stdin=echo.stdout, env=sasldbenv, timeout=5)
+
+    return (sasldbfile, sasldbenv)
+
+def plain_test(sasldbfile, sasldbenv):
+    try:
+        srv = subprocess.Popen(["../tests/t_gssapi_srv", "-P", sasldbfile],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=sasldbenv)
+        srv.stdout.readline() # Wait for srv to say it is ready
+        cli = subprocess.Popen(["../tests/t_gssapi_cli", "-P", "1234567"],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=sasldbenv)
+        try:
+            cli.wait(timeout=5)
+            srv.wait(timeout=5)
+        except Exception as e:
+            print("Failed on {}".format(e));
+            cli.kill()
+            srv.kill()
+        if cli.returncode != 0 or srv.returncode != 0:
+            raise Exception("CLI ({}): {} --> SRV ({}): {}".format(
+                cli.returncode, cli.stderr.read().decode('utf-8'),
+                srv.returncode, srv.stderr.read().decode('utf-8')))
+    except Exception as e:
+        print("FAIL: {}".format(e))
+        return
+
+    print("PASS: PLAIN CLI({}) SRV({})".format(
+        cli.stdout.read().decode('utf-8').strip(),
+        srv.stdout.read().decode('utf-8').strip()))
+    return
+
+def plain_mismatch_test(sasldbfile, sasldbenv):
+    result = "FAIL"
+    try:
+        srv = subprocess.Popen(["../tests/t_gssapi_srv", "-P", sasldbfile],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=sasldbenv)
+        srv.stdout.readline() # Wait for srv to say it is ready
+        bindings = base64.b64encode("CLI CBS".encode('utf-8'))
+        cli = subprocess.Popen(["../tests/t_gssapi_cli", "-P", "12345678"],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=sasldbenv)
+        try:
+            cli.wait(timeout=5)
+            srv.wait(timeout=5)
+        except Exception as e:
+            print("Failed on {}".format(e));
+            cli.kill()
+            srv.kill()
+        if cli.returncode != 0 or srv.returncode != 0:
+            cli_err = cli.stderr.read().decode('utf-8').strip()
+            srv_err = srv.stderr.read().decode('utf-8').strip()
+            if "authentication failure" in srv_err:
+                result = "PASS"
+            raise Exception("CLI ({}): {} --> SRV ({}): {}".format(
+                cli.returncode, cli_err, srv.returncode, srv_err))
+    except Exception as e:
+        print("{}: {}".format(result, e))
+        return
+
+    print("FAIL: This test should fail [CLI({}) SRV({})]".format(
+        cli.stdout.read().decode('utf-8').strip(),
+        srv.stdout.read().decode('utf-8').strip()))
+    return
+
+def plain_tests(testdir):
+    sasldbfile, sasldbenv = setup_plain(testdir)
+    #print("DB file: {}, ENV: {}".format(sasldbfile, sasldbenv))
+    print('SASLDB PLAIN:')
+    print('    ', end='')
+    plain_test(sasldbfile, sasldbenv)
+
+    print('SASLDB PLAIN PASSWORD MISMATCH:')
+    print('    ', end='')
+    plain_mismatch_test(sasldbfile, sasldbenv)
 
 if __name__ == "__main__":
 
@@ -253,4 +416,9 @@ if __name__ == "__main__":
         shutil.rmtree(T)
     os.makedirs(T)
 
-    gssapi_tests(T)
+    plain_tests(T)
+
+    err = gssapi_tests(T)
+    if err != 0:
+        print('{} test(s) FAILED'.format(err))
+        sys.exit(-1)

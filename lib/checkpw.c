@@ -65,17 +65,34 @@
 
 #include <stdlib.h>
 
-#ifndef WIN32
+#ifdef HAVE_STRINGS_H
 #include <strings.h>
+#endif
+
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
+#endif
+
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#endif
+
+#ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
-#else
+#endif
+
+#ifdef HAVE_STRING_H
 #include <string.h>
 #endif
 
-#include <limits.h>
+#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
+#endif
+
 #include <ctype.h>
 
 #ifdef HAVE_PWD_H
@@ -87,9 +104,6 @@
 
 #if defined(HAVE_PWCHECK) || defined(HAVE_SASLAUTHD) || defined(HAVE_AUTHDAEMON)
 # include <errno.h>
-# include <sys/types.h>
-# include <sys/socket.h>
-# include <sys/un.h>
 # ifdef HAVE_UNISTD_H
 #  include <unistd.h>
 # endif
@@ -233,6 +247,7 @@ static int auxprop_verify_password(sasl_conn_t *conn,
     return ret;
 }
 
+#if 0
 /* Verify user password using auxprop plugins. Allow verification against a hashed password,
  * or non-retrievable password. Don't use cmusaslsecretPLAIN attribute.
  *
@@ -328,6 +343,7 @@ static int auxprop_verify_password_hashed(sasl_conn_t *conn,
      * may want it */
     return ret;
 }
+#endif
 
 #ifdef DO_SASL_CHECKAPOP
 int _sasl_auxprop_verify_apop(sasl_conn_t *conn,
@@ -1108,7 +1124,9 @@ static int always_true(sasl_conn_t *conn,
 
 struct sasl_verify_password_s _sasl_verify_password[] = {
     { "auxprop", &auxprop_verify_password },
+#if 0	/* totally undocumented. wtf is this? */
     { "auxprop-hashed", &auxprop_verify_password_hashed },
+#endif
 #ifdef HAVE_PWCHECK
     { "pwcheck", &pwcheck_verify_password },
 #endif

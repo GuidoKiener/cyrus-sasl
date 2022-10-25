@@ -42,17 +42,13 @@ dnl AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
 dnl OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 dnl
 
-AC_PREREQ(2.63)
+AC_PREREQ([2.69])
 
 dnl
 dnl REMINDER: When changing the version number here, please also update
 dnl the values in win32/include/config.h and include/sasl.h as well.
 dnl
-AC_INIT([cyrus-sasl],
-        [2.1.27],
-        [https://github.com/cyrusimap/cyrus-sasl/issues],
-        [cyrus-sasl],
-        [http://www.cyrusimap.org])
+AC_INIT([cyrus-sasl],[2.1.28],[https://github.com/cyrusimap/cyrus-sasl/issues],[cyrus-sasl],[https://www.cyrusimap.org])
 
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -72,26 +68,22 @@ AM_INIT_AUTOMAKE([1.11 tar-ustar dist-bzip2 foreign -Wno-portability subdir-obje
 DIRS=""
 
 AC_ARG_ENABLE(cmulocal,
-              [AC_HELP_STRING([--enable-cmulocal],
-                              [enable local mods for CMU [[no]]])],
+              [AS_HELP_STRING([--enable-cmulocal],[enable local mods for CMU [[no]]])],
               [],
               enable_cmulocal=no)
 
 AC_ARG_ENABLE(sample,
-              [AC_HELP_STRING([--enable-sample],
-                              [compile sample code [[yes]]])],
+              [AS_HELP_STRING([--enable-sample],[compile sample code [[yes]]])],
               [],
               enable_sample=yes)
 
 AC_ARG_ENABLE(obsolete_cram_attr,
-              [AC_HELP_STRING([--enable-obsolete_cram_attr],
-                              [enable support for cmusaslsecretCRAM-MD5 auxprop property [[yes]]])],
+              [AS_HELP_STRING([--enable-obsolete_cram_attr],[enable support for cmusaslsecretCRAM-MD5 auxprop property [[yes]]])],
               enable_obsolete_cram_attr=$enableval,
               enable_obsolete_cram_attr=yes)
 
 AC_ARG_ENABLE(obsolete_digest_attr,
-              [AC_HELP_STRING([--enable-obsolete_digest_attr],
-                              [enable support for cmusaslsecretDIGEST-MD5 auxprop property [[yes]]])],
+              [AS_HELP_STRING([--enable-obsolete_digest_attr],[enable support for cmusaslsecretDIGEST-MD5 auxprop property [[yes]]])],
               enable_obsolete_digest_attr=$enableval,
               enable_obsolete_digest_attr=yes)
 
@@ -120,16 +112,18 @@ if test -z "$target"; then
 fi
 
 # new libtool
-AM_DISABLE_STATIC
-AC_PROG_LIBTOOL
+AC_DISABLE_STATIC([])
+LT_INIT([win32-dll])
 
 target=$save_target
 
 if test "$enable_static" = yes; then
-	SASL_STATIC_LIBS=libsasl2.a
+	SASL_STATIC_LIB=libsasl2.a
 else
-	SASL_STATIC_LIBS=
+	SASL_STATIC_LIB=
 fi
+AC_SUBST(SASL_STATIC_LIB)
+SASL_STATIC_LIBS=
 
 AC_ARG_ENABLE(staticdlopen, [  --enable-staticdlopen   try dynamic plugins when we are a static libsasl [[no]] ],
                 enable_staticdlopen=$enableval,
@@ -139,7 +133,7 @@ if test "$enable_staticdlopen" = yes; then
   AC_DEFINE(TRY_DLOPEN_WHEN_STATIC,[],[Should we try to dlopen() plugins while statically compiled?])
 fi
 
-if test "$ac_cv_prog_gcc" = yes; then
+if test "$ac_cv_c_compiler_gnu" = yes; then
   CFLAGS="-Wall -W ${CFLAGS}"
 fi
 
@@ -160,9 +154,6 @@ CMU_SOCKETS
 dnl we extracted this to config/sasldb.m4
 SASL_DB_PATH_CHECK()
 SASL_DB_CHECK()
-
-# Do we not install the SASL DB man pages?
-AM_CONDITIONAL(NO_SASL_DB_MANS, test "x$SASL_DB_MANS" = "x")
 
 AC_ARG_ENABLE(keep_db_open, [  --enable-keep-db-open   keep handle to DB open for improved performance [[no]] ],
                 keep_db_open=$enableval,
@@ -213,7 +204,8 @@ if test $sasl_cv_uscore = yes; then
 	AC_MSG_CHECKING(whether dlsym adds the underscore for us)
 	cmu_save_LIBS="$LIBS"
 	LIBS="$LIBS $SASL_DL_LIB"
-	AC_CACHE_VAL(sasl_cv_dlsym_adds_uscore,AC_TRY_RUN( [
+	AC_CACHE_VAL([sasl_cv_dlsym_adds_uscore],
+	             [AC_RUN_IFELSE([AC_LANG_SOURCE([[
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -221,11 +213,13 @@ void foo() { int i=0;}
 int main() { void *self, *ptr1, *ptr2; self=dlopen(NULL,RTLD_LAZY);
     if(self) { ptr1=dlsym(self,"foo"); ptr2=dlsym(self,"_foo");
     if(ptr1 && !ptr2) exit(0); } exit(1); } 
-], [sasl_cv_dlsym_adds_uscore=yes], sasl_cv_dlsym_adds_uscore=no
-	AC_DEFINE(DLSYM_NEEDS_UNDERSCORE, [], [Do we need a leading _ for dlsym?]),
-	AC_MSG_WARN(cross-compiler, we'll do our best)))
+]])],[sasl_cv_dlsym_adds_uscore=yes],[sasl_cv_dlsym_adds_uscore=no],[AC_MSG_WARN(cross-compiler, we'll do our best)])])
 	LIBS="$cmu_save_LIBS"
       AC_MSG_RESULT($sasl_cv_dlsym_adds_uscore)
+
+      if test "$sasl_cv_dlsym_adds_uscore" = no; then
+        AC_DEFINE(DLSYM_NEEDS_UNDERSCORE, [], [Do we need a leading _ for dlsym?])
+      fi
   fi
 fi
 
@@ -351,7 +345,7 @@ if test "$digest" != no; then
     LDFLAGS="$LDFLAGS -L$digest/lib"
   fi
   if test "$with_des" = no; then
-    AC_WARN(No DES support for DIGEST-MD5)
+    AC_MSG_WARN(No DES support for DIGEST-MD5)
   fi
 fi
 
@@ -365,6 +359,7 @@ if test "$digest" != no; then
   if test "$enable_static" = yes; then
     SASL_STATIC_SRCS="$SASL_STATIC_SRCS \$(top_srcdir)/plugins/digestmd5.c"
     SASL_STATIC_OBJS="$SASL_STATIC_OBJS digestmd5.o"
+    SASL_STATIC_LIBS="$SASL_STATIC_LIBS $LIB_DES"
     AC_DEFINE(STATIC_DIGESTMD5, [], [Link DIGEST-MD5 Statically])
   fi
 else
@@ -377,7 +372,7 @@ AC_ARG_ENABLE(scram, [  --enable-scram            enable SCRAM authentication [[
   scram=yes)
 
 if test "$with_openssl" = no; then
-  AC_WARN([OpenSSL not found -- SCRAM will be disabled])
+  AC_MSG_WARN(OpenSSL not found -- SCRAM will be disabled)
   scram=no
 fi
 
@@ -404,7 +399,7 @@ AC_ARG_ENABLE(otp, [  --enable-otp            enable OTP authentication [[yes]] 
   otp=yes)
 
 if test "$with_openssl" = no; then
-  AC_WARN([OpenSSL not found -- OTP will be disabled])
+  AC_MSG_WARN(OpenSSL not found -- OTP will be disabled)
   otp=no
 fi
 
@@ -421,7 +416,7 @@ if test "$otp" != no; then
   fi
 
   dnl Test for OPIE
-  AC_ARG_WITH(opie, AC_HELP_STRING([--with-opie=PATH], [use OPIE (One Time Passwords in Everything) from PATH]))
+  AC_ARG_WITH(opie, AS_HELP_STRING([--with-opie=PATH],[use OPIE (One Time Passwords in Everything) from PATH]))
 
   case "$with_opie" in
 	""|yes) 
@@ -460,7 +455,7 @@ AC_ARG_ENABLE(srp, [  --enable-srp            enable SRP authentication [[no]] ]
   srp=no)
 
 if test "$with_openssl" = no; then
-  AC_WARN([OpenSSL not found -- SRP will be disabled])
+  AC_MSG_WARN(OpenSSL not found -- SRP will be disabled)
   srp=no
 fi
 
@@ -503,6 +498,21 @@ if test "$gssapi" != "no"; then
   AC_DEFINE(HAVE_GSSAPI,[],[Include GSSAPI/Kerberos 5 Support])
 
   mutex_default="no"
+  ccache_default="no"
+  load_from_default="no"
+
+  AC_CHECK_HEADERS(gssapi.h, [have_gss_header=y])
+  AC_CHECK_HEADERS(gssapi/gssapi_ext.h, [have_gss_ext_header=y])
+  AC_SEARCH_LIBS(gss_acquire_cred_from, [gssapi_krb5], [have_load_from=t])
+  AC_SEARCH_LIBS(gss_store_cred_into, [gssapi_krb5], [have_store_into=t])
+
+  if test x"${have_gss_ext_header}" != x -a x"${have_load_from}" != x; then
+     load_from_default="yes"
+  fi
+  if test x"${have_gss_ext_header}" != x -a x"${have_store_into}" != x; then
+     ccache_default="yes"
+  fi
+
   if test "$gss_impl" = "mit"; then
      mutex_default="yes"
   elif test "$gss_impl" = "heimdal"; then
@@ -517,6 +527,26 @@ if test "$gssapi" != "no"; then
      AC_DEFINE(GSS_USE_MUTEXES, [], [should we mutex-wrap calls into the GSS library?])
   fi
   AC_MSG_RESULT($use_gss_mutexes)
+
+  AC_MSG_CHECKING(to use GSS delgation with ccache store)
+  AC_ARG_ENABLE(gss_ccache, [  --enable-gss-ccache       allow delegation of cached crdentials],
+                use_gss_ccache=$enableval,
+                use_gss_ccache=$ccache_default)
+
+  if test $use_gss_ccache = "yes"; then
+     AC_DEFINE(GSS_USE_CCACHE_STORE, [], [should we allow storage of cached credentials?])
+  fi
+  AC_MSG_RESULT($use_gss_ccache)
+
+  AC_MSG_CHECKING(to use GSS service keytab loading with gss_acquire_cred_from)
+  AC_ARG_ENABLE(gss_load_from, [  --enable-gss-load-from  allow GSSProxy friendly keytab load],
+                use_gss_load_from=$enableval,
+                use_gss_load_from=$load_from_default)
+
+  if test $use_gss_load_from = "yes"; then
+     AC_DEFINE(GSS_USE_LOAD_FROM, [], [should we use gss_acquire_cred_from?])
+  fi
+  AC_MSG_RESULT($use_gss_load_from)
 fi
 
 SASL2_CRYPT_CHK
@@ -552,7 +582,7 @@ if test "$httpform" != no; then
   AC_DEFINE(HAVE_HTTPFORM,[],[Include HTTP form Support])
 fi
 
-AC_ARG_WITH(pam, AC_HELP_STRING([--with-pam=DIR], [use PAM (rooted in DIR) [yes]]),,
+AC_ARG_WITH(pam, AS_HELP_STRING([--with-pam=DIR],[use PAM (rooted in DIR) [yes]]),,
 	with_pam=yes)
 if test "$with_pam" != no; then
   if test -d $with_pam; then
@@ -621,7 +651,7 @@ AC_ARG_ENABLE(ntlm, [  --enable-ntlm           enable unsupported NTLM authentic
   ntlm=no)
 
 if test "$with_openssl" = no; then
-  AC_WARN([OpenSSL not found -- NTLM will be disabled])
+  AC_MSG_WARN(OpenSSL not found -- NTLM will be disabled)
   ntlm=no
 fi
 
@@ -647,7 +677,7 @@ AC_ARG_ENABLE(passdss, [  --enable-passdss        enable PASSDSS authentication 
   passdss=no)
 
 if test "$with_openssl" = no; then
-  AC_WARN([OpenSSL not found -- PASSDSS will be disabled])
+  AC_MSG_WARN(OpenSSL not found -- PASSDSS will be disabled)
   passdss=no
 fi
 
@@ -751,7 +781,7 @@ case "$with_mysql" in
      # CPPFLAGS="${CPPFLAGS} `mysql_config --include`"
      AC_CHECK_LIB(mysqlclient, mysql_select_db,
            AC_DEFINE(HAVE_MYSQL, [], [Do we have mysql support?]),
-           [AC_WARN([MySQL library mysqlclient does not work])
+           [AC_MSG_WARN(MySQL library mysqlclient does not work)
             with_mysql=no])
      LDFLAGS=$save_LDFLAGS
      ;;
@@ -785,7 +815,7 @@ case "$with_mysql" in
        LDFLAGS="$LDFLAGS $LIB_MYSQL_DIR"
        AC_CHECK_LIB(mysqlclient, mysql_select_db,
 	   AC_DEFINE(HAVE_MYSQL, [], [Do we have mysql support?]),
-           [AC_WARN([MySQL library mysqlclient does not work])
+           [AC_MSG_WARN(MySQL library mysqlclient does not work)
 	    with_mysql=no])
        LDFLAGS=$save_LDFLAGS;;
          
@@ -827,7 +857,7 @@ case "$with_pgsql" in
      LDFLAGS="$LDFLAGS $LIB_PGSQL"
      AC_CHECK_LIB(pq, PQsetdbLogin, AC_DEFINE(HAVE_PGSQL,[],
          [Do we have Postgres support?]),
-         [AC_WARN([PostgreSQL Library pq does not work])
+         [AC_MSG_WARN(PostgreSQL Library pq does not work)
           with_pgsql=no])
      LDFLAGS=$save_LDFLAGS
      ;;
@@ -862,7 +892,7 @@ case "$with_pgsql" in
        LDFLAGS="$LDFLAGS $LIB_PGSQL_DIR"
        AC_CHECK_LIB(pq, PQsetdbLogin, AC_DEFINE(HAVE_PGSQL,[],
 	   [Do we have Postgres support?]),
-           [AC_WARN([PostgreSQL Library pq does not work])
+           [AC_MSG_WARN(PostgreSQL Library pq does not work)
 	    with_pgsql=no])
        LDFLAGS=$save_LDFLAGS;;
          
@@ -897,7 +927,7 @@ LIB_SQLITE=""
 
 case "$with_sqlite" in
     no) true;;
-    notfound) AC_WARN([SQLite Library not found]); true;;
+    notfound) AC_MSG_WARN(SQLite Library not found); true;;
     *)
      if test -d ${with_sqlite}/lib; then
          CMU_ADD_LIBPATH_TO(${with_sqlite}/lib, LIB_SQLITE)
@@ -915,7 +945,7 @@ case "$with_sqlite" in
      fi
        AC_CHECK_LIB(sqlite, sqlite_open, AC_DEFINE(HAVE_SQLITE,[],
 	   [Do we have SQLite support?]),
-           [AC_WARN([SQLite Library sqlite does not work])
+           [AC_MSG_WARN(SQLite Library sqlite does not work)
 	    with_sqlite=no], $LIB_SQLITE_DIR);;
 
 esac
@@ -949,7 +979,7 @@ LIB_SQLITE3=""
 
 case "$with_sqlite3" in
     no) true;;
-    notfound) AC_WARN([SQLite3 Library not found]); true;;
+    notfound) AC_MSG_WARN(SQLite3 Library not found); true;;
     *)
      if test -d ${with_sqlite3}/lib; then
          CMU_ADD_LIBPATH_TO(${with_sqlite3}/lib, LIB_SQLITE3)
@@ -967,7 +997,7 @@ case "$with_sqlite3" in
      fi
        AC_CHECK_LIB(sqlite3, sqlite3_open, AC_DEFINE(HAVE_SQLITE3,[],
 	   [Do we have SQLite3 support?]),
-           [AC_WARN([SQLite3 Library sqlite3 does not work])
+           [AC_MSG_WARN(SQLite3 Library sqlite3 does not work)
 	    with_sqlite3=no], $LIB_SQLITE3_DIR);;
 
 esac
@@ -1072,6 +1102,14 @@ AC_ARG_ENABLE(macos-framework, [  --disable-macos-framework       disable buildi
 esac
 AM_CONDITIONAL(MACOSX, test "$building_for_macosx" = yes)
 AM_CONDITIONAL(WINDOWS, test "$host_os" = "mingw32")
+if test "$host_os" = "mingw32"; then
+   AC_DEFINE(HAVE_WINSOCK2, 1, [define if you have winsock2])
+   ac_cv_func_socket=yes
+   ac_cv_func_select=yes
+   ac_cv_func_closesocket=yes
+   ac_cv_func_gethostname=yes
+   LIB_SOCKET="$LIB_SOCKET -lws2_32"
+fi
 
 dnl dmalloc tests
 AC_MSG_CHECKING(for dmalloc library)
@@ -1201,8 +1239,8 @@ IPv6_CHECK_FUNC(getaddrinfo, [IPv6_CHECK_FUNC(gai_strerror,
                 sasl_cv_getaddrinfo=no])])
 if test $sasl_cv_getaddrinfo = yes; then
     AC_LIBOBJ(getaddrinfo)
-    GETADDRINFOOBJS="getaddrinfo.o"
-    LTGETADDRINFOOBJS="getaddrinfo.lo"
+    GETADDRINFOOBJS="../lib/getaddrinfo.o"
+    LTGETADDRINFOOBJS="../lib/getaddrinfo.lo"
 fi
 AC_SUBST(GETADDRINFOOBJS)
 AC_SUBST(LTGETADDRINFOOBJS)
@@ -1214,11 +1252,35 @@ IPv6_CHECK_FUNC(getnameinfo,
 		[AC_DEFINE(HAVE_GETNAMEINFO,[],[Do we have a getnameinfo() function?])], [sasl_cv_getnameinfo=yes])
 if test $sasl_cv_getnameinfo = yes; then
 	AC_LIBOBJ(getnameinfo)
-        GETNAMEINFOOBJS="getnameinfo.o"
-        LTGETNAMEINFOOBJS="getnameinfo.lo"
+        GETNAMEINFOOBJS="../lib/getnameinfo.o"
+        LTGETNAMEINFOOBJS="../lib/getnameinfo.lo"
 fi
 AC_SUBST(GETNAMEINFOOBJS)
 AC_SUBST(LTGETNAMEINFOOBJS)
+
+dnl check for getpwnam
+sasl_cv_getpwnam=no
+AC_CHECK_FUNC(getpwnam, [AC_DEFINE(HAVE_GETPWNAM,[],
+	[do we have getpwnam()?])], [sasl_cv_getpwnam=yes])
+AC_SUBST(GETPWNAM)
+
+dnl check for getuid
+sasl_cv_getuid=no
+AC_CHECK_FUNC(getuid, [AC_DEFINE(HAVE_GETUID,[],
+	[do we have getuid()?])], [sasl_cv_getuid=yes])
+AC_SUBST(GETUID)
+
+dnl check for getlogin_r
+sasl_cv_getlogin_r=no
+AC_CHECK_FUNC(getlogin_r, [AC_DEFINE(HAVE_GETLOGIN_R,[],
+	[do we have getlogin_r()?])], [sasl_cv_getlogin_r=yes])
+AC_SUBST(GETLOGIN_R)
+
+dnl check for getpid
+sasl_cv_getpid=no
+AC_CHECK_FUNC(getpid, [AC_DEFINE(HAVE_GETPID,[],
+	[do we have getpid()?])], [sasl_cv_getpid=yes])
+AC_SUBST(GETPID)
 
 LTLIBOBJS=`echo "$LIB@&t@OBJS" | sed 's,\.[[^.]]* ,.lo ,g;s,\.[[^.]]*$,.lo,'`
 AM_CONDITIONAL(BUILD_LIBOBJ, test "$LTLIBOBJS" != "")
@@ -1228,13 +1290,12 @@ AC_C_CONST
 AC_C_INLINE
 AC_TYPE_MODE_T
 AC_TYPE_PID_T
-AC_TYPE_SIGNAL
 
-AC_HEADER_TIME
-AC_HEADER_STDC
+AC_CHECK_HEADERS_ONCE([sys/time.h])
+
 AC_HEADER_DIRENT
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS(crypt.h des.h dlfcn.h fcntl.h limits.h malloc.h paths.h strings.h sys/file.h sys/time.h syslog.h unistd.h inttypes.h sys/uio.h sys/param.h sysexits.h stdarg.h varargs.h krb5.h)
+AC_CHECK_HEADERS(crypt.h des.h dlfcn.h fcntl.h limits.h malloc.h paths.h strings.h sys/file.h sys/time.h syslog.h time.h unistd.h inttypes.h sys/uio.h sys/param.h sysexits.h stdarg.h varargs.h krb5.h netinet/in.h netdb.h sys/un.h string.h termios.h getopt.h arpa/inet.h sys/socket.h)
 
 IPv6_CHECK_SS_FAMILY()
 IPv6_CHECK_SA_LEN()
@@ -1246,28 +1307,24 @@ AC_CHECK_FUNCS(gethostname getdomainname getpwnam getspnam gettimeofday inet_ato
 
 if test $ac_cv_func_getspnam = yes; then
 	AC_MSG_CHECKING(if getpwnam_r/getspnam_r take 5 arguments)
-	AC_TRY_COMPILE(
-		[
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <sys/types.h>
 #include <pwd.h>
 #include <shadow.h>
-		],
-		[
+		]], [[
 struct passwd *pw;
 struct passwd pwbuf;
 char pwdata[512];
 (void) getpwnam_r("bin", &pwbuf, pwdata, sizeof(pwdata), &pw);
-		],
-		[AC_MSG_RESULT(yes)
+		]])],[AC_MSG_RESULT(yes)
 		 AC_DEFINE(GETXXNAM_R_5ARG, 1,
 			[Define if your getpwnam_r()/getspnam_r()
-			functions take 5 arguments])],
-		[AC_MSG_RESULT(no)]
-	)
+			functions take 5 arguments])],[AC_MSG_RESULT(no)
+	])
 fi
 
 if test $enable_cmulocal = yes; then
-    AC_WARN([enabling CMU local kludges])
+    AC_MSG_WARN(enabling CMU local kludges)
     AC_DEFINE(KRB4_IGNORE_IP_ADDRESS,[],[Ignore IP Address in Kerberos 4 tickets?])
     AC_DEFINE_UNQUOTED(PREFER_MECH, "KERBEROS_V4", [Force a preferred mechanism])
 fi
@@ -1290,9 +1347,7 @@ AS_CASE([$with_sphinx_build],
 AS_IF([test -z "$SPHINX_BUILD"],
       [AC_MSG_WARN([No sphinx-build, won't be able to regenerate docs])])
 AC_SUBST([SPHINX_BUILD])
-AC_PROG_PERL_MODULES([Pod::POM::View::Restructured],
-                     [have_ppvr=yes],
-                     [AC_MSG_WARN([No Pod::POM::View::Restructured, won't be able to regenerate docs])])
+AX_PROG_PERL_MODULES([Pod::POM::View::Restructured],[have_ppvr=yes],[AC_MSG_WARN([No Pod::POM::View::Restructured, won't be able to regenerate docs])])
 AM_CONDITIONAL([HAVE_SPHINX_BUILD], [ test -n "$SPHINX_BUILD" -a x"$have_ppvr" = xyes])
 
 
@@ -1344,6 +1399,7 @@ AH_TOP([
 
 AH_BOTTOM([
 
+#define RETSIGTYPE void
 
 /* Create a struct iovec if we need one */
 #if !defined(_WIN32)
@@ -1355,7 +1411,9 @@ struct iovec {
 };
 #else
 #include <sys/types.h>
+#ifdef HAVE_SYS_UIO_H
 #include <sys/uio.h>
+#endif /* HAVE_SYS_UIO_H */
 #endif
 #endif
 
@@ -1391,9 +1449,13 @@ struct iovec {
 #include <stdlib.h>
 #include <sys/types.h>
 #ifndef WIN32
+# ifdef HAVE_SYS_SOCKET_H
 # include <sys/socket.h>
+# endif /* HAVE_SYS_SOCKET_H */
 # include <netdb.h>
+# ifdef HAVE_NETINET_IN_H
 # include <netinet/in.h>
+# endif /* HAVE_NETINET_IN_H */
 # ifdef HAVE_SYS_PARAM_H
 #  include <sys/param.h>
 # endif
@@ -1466,15 +1528,21 @@ struct sockaddr_storage {
 #endif
 
 #ifdef WIN32
-#define SASL_ROOT_KEY "SOFTWARE\\Carnegie Mellon\\Project Cyrus\\SASL Library"
-#define SASL_PLUGIN_PATH_ATTR "SearchPath"
-#define SASL_CONF_PATH_ATTR "ConfFile"
+#define SASL_ROOT_KEY "SOFTWARE\\Project Cyrus\\SASL Library"
+#define SASL_PLUGIN_PATH_ATTR "PluginDir"
+#define SASL_CONF_PATH_ATTR "ConfDir"
+#define SASL_DB_PATH_ATTR "SaslDBName"
 
 #include <windows.h>
 inline static unsigned int sleep(unsigned int seconds) {
        Sleep(seconds * 1000);
        return 0;
 }
+#else
+#define SASL_ROOT_KEY         NULL
+#define SASL_PLUGIN_PATH_ATTR "SASL_PLUGINDIR"
+#define SASL_CONF_PATH_ATTR   "SASL_CONFDIR"
+#define SASL_DB_PATH_ATTR     "SASL_DBNAME"
 #endif
 
 /* handy string manipulation functions */
@@ -1502,7 +1570,7 @@ AH_BOTTOM([#if defined __GNUC__ &&  __GNUC__ > 6
 
 AC_CONFIG_HEADERS(config.h)
 
-AC_OUTPUT(Makefile
+AC_CONFIG_FILES([Makefile
 libsasl2.pc
 include/Makefile
 saslauthd/Makefile
@@ -1513,7 +1581,8 @@ lib/Makefile
 utils/Makefile
 sample/Makefile
 pwcheck/Makefile
-tests/Makefile)
+tests/Makefile])
+AC_OUTPUT
 
 AC_MSG_NOTICE([
 

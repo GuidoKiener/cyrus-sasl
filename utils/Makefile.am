@@ -50,19 +50,19 @@ EXTRA_PROGRAMS = saslpasswd2 sasldblistusers2 testsuite testsuitestatic smtptest
 
 noinst_PROGRAMS = dbconverter-2
 
-if NO_SASL_DB_MANS
-man_MANS = 
-else
-man_MANS = saslpasswd2.8 sasldblistusers2.8 pluginviewer.8
-endif
+man_MANS = $(SASL_DB_MANS) pluginviewer.8
 
 saslpasswd2_LDADD = ../sasldb/libsasldb.la $(all_sasl_libs)
 saslpasswd2_SOURCES = saslpasswd.c
+saslpasswd2_LDFLAGS = -rpath $(libdir)
 sasldblistusers2_LDADD = ../sasldb/libsasldb.la $(all_sasl_libs)
 sasldblistusers2_SOURCES = sasldblistusers.c
+sasldblistusers2_LDFLAGS = -rpath $(libdir)
 dbconverter_2_LDADD = ../sasldb/libsasldb.la $(all_sasl_libs)
+dbconverter_2_LDFLAGS = -rpath $(libdir)
 pluginviewer_LDADD = $(all_sasl_libs)
 pluginviewer_SOURCES = pluginviewer.c
+pluginviewer_LDFLAGS = -rpath $(libdir)
 
 testsuite_LDADD = $(all_sasl_libs) @DMALLOC_LIBS@
 
@@ -89,7 +89,7 @@ libsfsasl2_la_SOURCES =
 libsfsasl2_la_LIBADD = sfsasl.lo
 libsfsasl2_la_LDFLAGS = -version-info 1:0:0 -export-dynamic -rpath $(libdir)
 
-AM_CPPFLAGS=-I$(top_srcdir)/include -I$(top_builddir)/include @SASL_DB_INC@ -DPLUGINDIR='"${plugindir}"'
+AM_CPPFLAGS=-DLIBSASL_EXPORTS=1 -I$(top_srcdir)/include -I$(top_builddir)/include @SASL_DB_INC@ -DPLUGINDIR='"${plugindir}"'
 
 EXTRA_DIST = saslpasswd2.8 sasldblistusers2.8 pluginviewer.8 sfsasl.h sfsasl.c smtptest.c testsuite.c pluginviewer.c NTMakefile
 
