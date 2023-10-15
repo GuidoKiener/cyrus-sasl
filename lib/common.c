@@ -64,6 +64,16 @@
 #include <unistd.h>
 #endif
 
+#ifdef HAVE_PTHREAD
+#include <pthread.h>
+#endif
+
+#ifdef HAVE_NT_THREADS
+#define _WIN32_WINNT 0x0400
+#include <windows.h>
+#include <process.h>
+#endif
+
 static const char *implementation_string = "Cyrus SASL";
 static const char *sasl_root_key = SASL_ROOT_KEY;
 
@@ -123,24 +133,53 @@ static int _sasl_global_getopt(void *context,
 			       const char ** result,
 			       unsigned *len);
  
-/* Intenal mutex functions do as little as possible (no thread protection) */
+#ifdef HAVE_PTHREAD
+static pthread_mutex_t static_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
 static void *sasl_mutex_alloc(void)
 {
-  return (void *)0x1;
+#if defined(HAVE_PTHREAD)
+    pthread_mutex_t *mutex = sasl_ALLOC(sizeof(pthread_mutex_t));
+    if (!mutex) return NULL;
+    if (pthread_mutex_init(mutex, NULL)) return NULL;
+    return mutex;
+#elif defined(HAVE_NT_THREADS)
+    return CreateMutex(NULL, 0, NULL);
+#else
+    return (void *)0x1;
+#endif
 }
 
 static int sasl_mutex_lock(void *mutex __attribute__((unused)))
 {
+#if defined(HAVE_PTHREAD)
+    if (pthread_mutex_lock(mutex)) return SASL_FAIL;
+#elif defined(HAVE_NT_THREADS)
+    DWORD status;
+    if (WaitForSingleObject(mutex, INFINITE) == WAIT_FAILED)
+	return SASL_FAIL;
+#endif
     return SASL_OK;
 }
 
 static int sasl_mutex_unlock(void *mutex __attribute__((unused)))
 {
+#if defined(HAVE_PTHREAD)
+    if (pthread_mutex_unlock(mutex)) return SASL_FAIL;
+#elif defined(HAVE_NT_THREADS)
+    ReleaseMutex(mutex);
+#endif
     return SASL_OK;
 }
 
 static void sasl_mutex_free(void *mutex __attribute__((unused)))
 {
+#if defined(HAVE_PTHREAD)
+    pthread_mutex_destroy(mutex);
+#elif defined(HAVE_NT_THREADS)
+    CloseHandle(mutex);
+#endif
     return;
 }
 
@@ -158,7 +197,7 @@ void sasl_set_mutex(sasl_mutex_alloc_t *n,
 {
     /* Disallow mutex function changes once sasl_client_init
        and/or sasl_server_init is called */
-    if (_sasl_server_cleanup_hook || _sasl_client_cleanup_hook) {
+    if (free_mutex) {
 	return;
     }
 
@@ -166,6 +205,25 @@ void sasl_set_mutex(sasl_mutex_alloc_t *n,
     _sasl_mutex_utils.lock=l;
     _sasl_mutex_utils.unlock=u;
     _sasl_mutex_utils.free=d;
+}
+
+void _sasl_mutex_init(void)
+{
+    if (_sasl_mutex_utils.alloc != &sasl_mutex_alloc) {
+	free_mutex = _sasl_mutex_utils.alloc();
+	return;
+    }
+
+#if defined(HAVE_PTHREAD)
+    free_mutex = &static_mutex;
+#elif defined(HAVE_NT_THREADS)
+    HANDLE p = CreateMutex(NULL, 0, NULL);
+    if (InterlockedCompareExchangePointer((PVOID*)&free_mutex, (PVOID)p, NULL) != NULL)
+	CloseHandle(p);
+#else
+    free_mutex = _sasl_mutex_utils.alloc();
+#endif
+    return;
 }
 
 /* copy a string to malloced memory */
@@ -792,34 +850,40 @@ int _sasl_common_init(sasl_global_callbacks_t *global_callbacks)
 {
     int result;
 
-    /* The last specified global callback always wins */
-    if (sasl_global_utils != NULL) {
-	sasl_utils_t * global_utils = (sasl_utils_t *)sasl_global_utils;
+    if (!free_mutex) {
+	_sasl_mutex_init();
+	if (!free_mutex) {
+	    return SASL_FAIL;
+	}
+    }
+
+    result = sasl_MUTEX_LOCK(free_mutex);
+    if (result != SASL_OK) return SASL_FAIL;
+
+    /* Just update global callback if we are already initialized */
+    if (sasl_global_utils) {
+	sasl_utils_t *global_utils = (sasl_utils_t *)sasl_global_utils;
 	global_utils->getopt = &_sasl_global_getopt;
 	global_utils->getopt_context = global_callbacks;
-    }
 
-    /* Do nothing if we are already initialized */
-    if (free_mutex) {
+	sasl_MUTEX_UNLOCK(free_mutex);
 	return SASL_OK;
-    }
-
-    /* Setup the global utilities */
-    if(!sasl_global_utils) {
+    } else {
 	sasl_global_utils = _sasl_alloc_utils(NULL, global_callbacks);
-	if(sasl_global_utils == NULL) return SASL_NOMEM;
+	if (sasl_global_utils == NULL) {
+	    sasl_MUTEX_UNLOCK(free_mutex);
+	    return SASL_NOMEM;
+	}
     }
 
     /* Init the canon_user plugin */
     result = sasl_canonuser_add_plugin("INTERNAL", internal_canonuser_init);
-    if(result != SASL_OK) return result;    
-
-    if (!free_mutex) {
-	free_mutex = sasl_MUTEX_ALLOC();
+    if (result != SASL_OK) {
+	result = SASL_FAIL;
     }
-    if (!free_mutex) return SASL_FAIL;
 
-    return SASL_OK;
+    sasl_MUTEX_UNLOCK(free_mutex);
+    return result;
 }
 
 /* dispose connection state, sets it to NULL
@@ -835,7 +899,7 @@ void sasl_dispose(sasl_conn_t **pconn)
   /* serialize disposes. this is necessary because we can't
      dispose of conn->mutex if someone else is locked on it */
   if (!free_mutex) {
-      free_mutex = sasl_MUTEX_ALLOC();
+      _sasl_mutex_init();
       if (!free_mutex) return;
   }
 
@@ -2074,15 +2138,7 @@ _sasl_alloc_utils(sasl_conn_t *conn,
   utils->mutex_lock = _sasl_mutex_utils.lock;
   utils->mutex_unlock = _sasl_mutex_utils.unlock;
   utils->mutex_free = _sasl_mutex_utils.free;
-  
-  utils->MD5Init  = &_sasl_MD5Init;
-  utils->MD5Update= &_sasl_MD5Update;
-  utils->MD5Final = &_sasl_MD5Final;
-  utils->hmac_md5 = &_sasl_hmac_md5;
-  utils->hmac_md5_init = &_sasl_hmac_md5_init;
-  utils->hmac_md5_final = &_sasl_hmac_md5_final;
-  utils->hmac_md5_precalc = &_sasl_hmac_md5_precalc;
-  utils->hmac_md5_import = &_sasl_hmac_md5_import;
+
   utils->mkchal = &sasl_mkchal;
   utils->utf8verify = &sasl_utf8verify;
   utils->rand=&sasl_rand;

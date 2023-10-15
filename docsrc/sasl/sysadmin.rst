@@ -101,9 +101,9 @@ To add users of different realms to sasldb, you can use the
 ``-u`` option to saslpasswd2.  The SQL plugin has a way of
 integrating the realm name into the query string with the '%r' macro.
 
-The Kerberos mechanisms treat the SASL realm as the Kerberos
-realm.  Thus, the realm for Kerberos mechanisms defaults to the
-default Kerberos realm on the server.  They may support cross-realm
+The Kerberos GSSAPI mechanism treats the SASL realm as the Kerberos
+realm.  Thus, the realm for Kerberos GSSAPI mechanism defaults to the
+default Kerberos realm on the server.  It may support cross-realm
 authentication; check your application on how it deals with this.
 
 Realms will be passed to saslauthd as part of the saslauthd protocol,
@@ -211,19 +211,12 @@ write your own
     However, the more flexible and preferred method of
     adding a routine is to create a new saslauthd mechanism.
 
-The LOGIN mechanism (not to be confused with IMAP4's LOGIN command)
-is an undocumented, unsupported mechanism.  It's included in the Cyrus
-SASL distribution for the sake of SMTP servers that might want to
-interoperate with old clients.  Do not enable this mechanism unless
-you know you're going to need it.  When enabled, it verifies passwords
-the same way the PLAIN mechanism does.
-
 Shared secrets mechanisms
 -------------------------
 
-The Cyrus SASL library also supports some "shared secret"
-authentication methods: CRAM-MD5, DIGEST-MD5 and its successor SCRAM.
-These methods rely on the client and the server sharing a "secret",
+The Cyrus SASL library also supports a "shared secret"
+authentication method: SCRAM.
+This method relies on the client and the server sharing a "secret",
 usually a password.  The server generates a challenge and the client a
 response proving that it knows the shared secret.  This is much more
 secure than simply sending the secret over the wire proving that the
@@ -234,10 +227,10 @@ server must keep passwords or password equivalents in a database;
 if this database is compromised, it is the same as if all the
 passwords for the realm are compromised.
 
-Put another way, *you cannot use saslauthd with these methods*.
-If you do not wish to advertise these methods for that reason (i.e. you
+Put another way, *you cannot use saslauthd with this method*.
+If you do not wish to advertise this method for that reason (i.e. you
 are only using saslauthd for password verification), then either remove
-the non-plaintext plugins (those other than login and plain) from the
+the non-plaintext plugins (those other than PLAIN) from the
 plugin directory, or use the :option:`mech_list` option to disable them.
 
 For simplicity sake, the Cyrus SASL library stores plaintext
@@ -276,24 +269,18 @@ no point in enabling this option if "pwcheck_method" is "auxprop",
 and the sasldb plugin is installed, since you'll be transitioning from
 a plaintext store to a plaintext store)
 
-Kerberos mechanisms
+Kerberos mechanism
 -------------------
 
-The Cyrus SASL library also comes with two mechanisms that make use of
-Kerberos: KERBEROS_V4, which should be able to use any Kerberos v4
-implementation, and GSSAPI (tested against MIT Kerberos 5, Heimdal
-Kerberos 5 and CyberSafe Kerberos 5).  These mechanisms make use of the kerberos infrastructure
-and thus have no password database.
+The Cyrus SASL library also comes with a mechanism that make use of
+Kerberos: GSSAPI (tested against MIT Kerberos 5, Heimdal
+Kerberos 5 and CyberSafe Kerberos 5).  This mechanism makes use of the
+kerberos infrastructure and thus has no password database.
 
 Applications that wish to use a kerberos mechanism will need access
-to a service key, stored either in a :option:`srvtab` file (Kerberos 4) or a
-:option:`keytab` file (Kerberos 5).
+to a service key, stored in a :option:`keytab` file.
 
-The Kerberos 4 :option:`srvtab` file location is configurable; by default it is
-``/etc/srvtab``, but this is modifiable by the "srvtab" option.
-Different SASL applications can use different srvtab files.
-
-A SASL application must be able to read its srvtab or keytab file.
+A SASL application must be able to read its keytab file.
 
 You may want to consult the :ref:`GSSAPI Tutorial <gssapi>`.
 
@@ -301,7 +288,7 @@ The OTP mechanism
 -----------------
 
 The Cyrus SASL library also supports the One-Time-Password (OTP)
-mechanism.  This mechanism is similar to CRAM-MD5, DIGEST-MD5, SCRAM
+mechanism.  This mechanism is similar to SCRAM
 and SRP in that is uses a shared secret and a challenge/response exchange.
 However, OTP is more secure than the other shared secret mechanisms in
 that the secret is used to generate a sequence of one-time (single
@@ -403,19 +390,13 @@ SASL_DBNAME
 Troubleshooting
 ===============
 
-Why doesn't KERBEROS_V4 doesn't appear as an available mechanism?
-    Check that the ``srvtab`` file is readable by the
-    user running as the daemon.  For Cyrus imapd, it must be readable by
-    the Cyrus user.  By default, the library looks for the srvtab in
-    ``/etc/srvtab``, but it's configurable using the :option:`srvtab`
-    option.
 Why doesn't OTP doesn't appear as an available mechanism?
     If using OPIE, check that the ``opiekeys`` file is
     readable by the user running the daemon.  For Cyrus imapd, it must
     be readable by the Cyrus user.  By default, the library looks for the
     opiekeys in ``/etc/opiekeys``, but it's configurable using the
     :option:`opiekeys` option.
-Why don't CRAM-MD5, DIGEST-MD5 and SCRAM work with my old sasldb?
+Why doesn't SCRAM work with my old sasldb?
     Because sasldb now stores plaintext passwords only, the old
     sasldb is incompatible.
 I'm having performance problems on each authentication, there is a noticeable slowdown when sasl initializes, what can I do?
@@ -440,30 +421,9 @@ I've converted the sasldb database to the new format. Why can't anybody authenti
     ...and if you're using cyrus-imapd, /etc/imapd.conf must reflect:
     ``sasl_pwcheck_method: auxprop``
 
-Is LOGIN supported?
-    The LOGIN mechanism is a non-standard, undocumented
-    plaintext mechanism.  It's included in the SASL distribution purely
-    for sites that need it to interoperate with old clients; we don't
-    support it.  Don't enable it unless you know you need it.
-
-Is NTLM supported?
-    The NTLM mechanism is a non-standard, undocumented
-    mechanism developed by Microsoft.  It's included in the SASL
-    distribution purely for sites that need it to interoperate with
-    Microsoft clients (ie, Outlook) and/or servers (ie, Exchange); we
-    don't support it.  Don't enable it unless you know you need it.
-
 How can I get a non-root application to check plaintext passwords?
     Use the "saslauthd" daemon and setting "pwcheck_method"
     to "saslauthd".
-
-I want to use Berkeley DB, but it's installed in ``/usr/local/BerkeleyDB.3.1`` and ``configure`` can't find it.
-    Try setting "CPPFLAGS" and "LDFLAGS" environment
-    variables before running ``configure``, like so::
-
-        env CPPFLAGS="-I/usr/local/BerkeleyDB.3.1/include" \
-          LDFLAGS="-L/usr/local/BerkeleyDB.3.1/lib -R/usr/local/BerkeleyDB.3.1/lib" \
-          ./configure --with-dblib=berkeley
 
 It's not working and won't tell me why! Help!
     Check syslog output (usually stored in

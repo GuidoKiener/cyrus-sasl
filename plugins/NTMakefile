@@ -2,11 +2,7 @@
 
 SCRAM=1
 
-!IF "$(NTLM)" == "1"
-PLUGINS_EXT=saslNTLM.dll
-!ELSE 
 PLUGINS_EXT=
-!ENDIF 
 
 !IF "$(GSSAPI)" == "CyberSafe"
 PLUGINS_EXT=$(PLUGINS_EXT) saslGSSAPI.dll
@@ -44,14 +40,11 @@ SQLITE_LIBS = "/libpath:$(SQLITE_LIBPATH3)" libsqlite3.lib
 
 PLUGINS=saslANONYMOUS.dll \
 	saslPLAIN.dll \
-	saslCRAMMD5.dll \
-	saslDIGESTMD5.dll \
-	saslLOGIN.dll \
 	saslSCRAM.dll \
 	$(PLUGINS_EXT) \
 	saslSASLDB.dll
 
-generated_rc=saslANONYMOUS.rc saslPLAIN.rc saslCRAMMD5.rc saslDIGESTMD5.rc saslLOGIN.rc saslNTLM.rc saslSCRAM.rc saslGSSAPI.rc saslSRP.rc saslOTP.rc saslSASLDB.rc saslSQLITE.rc saslLDAPDB.rc
+generated_rc=saslANONYMOUS.rc saslPLAIN.rc saslSCRAM.rc saslGSSAPI.rc saslSRP.rc saslOTP.rc saslSASLDB.rc saslSQLITE.rc saslLDAPDB.rc
 
 # WS2tcpip.h included in Visual Studio 7 provides getaddrinfo, ...
 # emulation on Windows, so there is no need to build getaddrinfo.c
@@ -68,20 +61,8 @@ saslANONYMOUS_out = saslANONYMOUS.dll saslANONYMOUS.exp saslANONYMOUS.lib
 saslPLAIN_objs = plain.obj plain_init.obj $(common_objs)
 saslPLAIN_out = saslPLAIN.dll saslPLAIN.exp saslPLAIN.lib
 
-saslCRAMMD5_objs = cram.obj crammd5_init.obj $(common_objs)
-saslCRAMMD5_out = saslCRAMMD5.dll saslCRAMMD5.exp saslCRAMMD5.lib
-
-saslDIGESTMD5_objs = digestmd5.obj digestmd5_init.obj $(common_objs)
-saslDIGESTMD5_out = saslDIGESTMD5.dll saslDIGESTMD5.exp saslDIGESTMD5.lib
-
-saslLOGIN_objs = login.obj login_init.obj $(common_objs)
-saslLOGIN_out = saslLOGIN.dll saslLOGIN.exp saslLOGIN.lib
-
 saslSCRAM_objs = scram.obj scram_init.obj $(common_objs)
 saslSCRAM_out = saslSCRAM.dll saslSCRAM.exp saslSCRAM.lib
-
-saslNTLM_objs = ntlm.obj ntlm_init.obj $(common_objs)
-saslNTLM_out = saslNTLM.dll saslNTLM.exp saslNTLM.lib
 
 saslGSSAPI_objs = gssapi.obj gssapiv2_init.obj $(common_objs)
 saslGSSAPI_out = saslGSSAPI.dll saslGSSAPI.exp saslGSSAPI.lib
@@ -99,11 +80,7 @@ saslSQL_out = saslSQLITE.dll saslSQLITE.exp saslSQLITE.lib
 saslLDAPDB_objs = ldapdb.obj $(common_objs)
 saslLDAPDB_out = saslLDAPDB.dll saslLDAPDB.exp saslLDAPDB.lib
 
-!IF "$(NTLM)" == "1" || "$(SRP)" == "1" || "$(OTP)" == "1" || "$(SCRAM)" == "1"
 OPENSSL_FLAGS= /I "$(OPENSSL_INCLUDE)"
-!ELSE 
-OPENSSL_FLAGS=
-!ENDIF 
 
 !IF "$(GSSAPILIB)" == ""
 !IF EXISTS($(GSSAPI_LIBPATH)\gssapi64.lib)
@@ -129,24 +106,15 @@ DB_LIBS="/libpath:$(LMDB_LIBPATH)" lmdb.lib
 
 # Auxprop Plugin
 libsasldb_objs = allockey.obj db_lmdb.obj
-!ELSE
-DB_LIBS="/libpath:$(DB_LIBPATH)" "$(DB_LIB)"
-
-# Auxprop Plugin
-libsasldb_objs = allockey.obj db_berkeley.obj
 !ENDIF
-
-CRAM_FLAGS=/DOBSOLETE_CRAM_ATTR=1
-
-DIGEST_FLAGS=/D "WITH_RC4" /DOBSOLETE_DIGEST_ATTR=1
 
 SCRAM_FLAGS=/DHAVE_SHA512=1
 
 saslSASLDB_objs = sasldb.obj sasldb_init.obj $(libsasldb_objs) $(common_objs)
 saslSASLDB_out = saslSASLDB.dll saslSASLDB.exp saslSASLDB.lib
 
-all_objs = $(saslANONYMOUS_objs) $(saslPLAIN_objs) $(saslCRAMMD5_objs) $(saslDIGESTMD5_objs) $(saslLOGIN_objs) $(saslSCRAM_objs) $(saslNTLM_objs) $(saslGSSAPI_objs) $(saslSRP_objs) $(saslOTP_objs) $(saslSASLDB_objs) $(saslSQL_objs) $(saslLDAPDB_objs)
-all_out = $(saslANONYMOUS_out) $(saslPLAIN_out) $(saslCRAMMD5_out) $(saslDIGESTMD5_out) $(saslLOGIN_out) $(saslSCRAM_out) $(saslNTLM_out) $(saslGSSAPI_out) $(saslSRP_out) $(saslOTP_out) $(saslSASLDB_out) $(saslSQL_out) $(saslLDAPDB_out)
+all_objs = $(saslANONYMOUS_objs) $(saslPLAIN_objs) $(saslSCRAM_objs) $(saslGSSAPI_objs) $(saslSRP_objs) $(saslOTP_objs) $(saslSASLDB_objs) $(saslSQL_objs) $(saslLDAPDB_objs)
+all_out = $(saslANONYMOUS_out) $(saslPLAIN_out) $(saslSCRAM_out) $(saslGSSAPI_out) $(saslSRP_out) $(saslOTP_out) $(saslSASLDB_out) $(saslSQL_out) $(saslLDAPDB_out)
 
 # LIBSASL_EXPORTS is required to export additional DB routines from sasldb
 DB_FLAGS = /I "$(DB_INCLUDE)" /I "..\sasldb" /D "LIBSASL_EXPORTS" /D "KEEP_DB_OPEN"
@@ -155,7 +123,7 @@ DB_FLAGS = /I "$(DB_INCLUDE)" /I "..\sasldb" /D "LIBSASL_EXPORTS" /D "KEEP_DB_OP
 EXTRA_FLAGS = /D TARGET_WIN_SYSTEM=$(TARGET_WIN_SYSTEM) $(EXTRA_FLAGS)
 !ENDIF
 
-EXTRA_FLAGS=$(EXTRA_FLAGS) $(DB_FLAGS) $(OPENSSL_FLAGS) $(GSS_FLAGS) $(SRP_FLAGS) $(SQL_FLAGS) $(DIGEST_FLAGS) $(CRAM_FLAGS) $(SCRAM_FLAGS) $(LDAP_FLAGS)
+EXTRA_FLAGS=$(EXTRA_FLAGS) $(DB_FLAGS) $(OPENSSL_FLAGS) $(GSS_FLAGS) $(SRP_FLAGS) $(SQL_FLAGS) $(SCRAM_FLAGS) $(LDAP_FLAGS)
 CPPFLAGS = /I "..\win32\include" /I "." /I "..\include" /I "..\common" $(EXTRA_FLAGS) /D "_WIN32" $(COMMON_CPPFLAGS)
 
 OPENSSL_LIBS="/libpath:$(OPENSSL_LIBPATH)"
@@ -204,28 +172,8 @@ saslPLAIN.dll: $(saslPLAIN_objs) saslPLAIN.res
 <<
 	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;2
 
-saslCRAMMD5.dll: $(saslCRAMMD5_objs) saslCRAMMD5.res
-	$(LINK32DLL) @<< $(LINK32DLL_FLAGS) /out:"saslCRAMMD5.dll" /implib:"saslCRAMMD5.lib" $(saslCRAMMD5_objs) saslCRAMMD5.res
-<<
-	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;2
-
-saslDIGESTMD5.dll: $(saslDIGESTMD5_objs) saslDIGESTMD5.res
-	$(LINK32DLL) @<< $(OPENSSL_LIBS) $(LINK32DLL_FLAGS) /out:"saslDIGESTMD5.dll" /implib:"saslDIGESTMD5.lib" $(saslDIGESTMD5_objs) saslDIGESTMD5.res
-<<
-	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;2
-
-saslLOGIN.dll: $(saslLOGIN_objs) saslLOGIN.res
-	$(LINK32DLL) @<< $(LINK32DLL_FLAGS) /out:"saslLOGIN.dll" /implib:"saslLOGIN.lib" $(saslLOGIN_objs) saslLOGIN.res
-<<
-	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;2
-
 saslSCRAM.dll: $(saslSCRAM_objs) saslSCRAM.res
 	$(LINK32DLL) @<< $(OPENSSL_LIBS) $(LINK32DLL_FLAGS) /out:"saslSCRAM.dll" /implib:"saslSCRAM.lib" $(saslSCRAM_objs) saslSCRAM.res
-<<
-	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;2
-
-saslNTLM.dll: $(saslNTLM_objs) saslNTLM.res
-	$(LINK32DLL) @<< $(OPENSSL_LIBS) $(LINK32DLL_FLAGS) /out:"saslNTLM.dll" /implib:"saslNTLM.lib" $(saslNTLM_objs) saslNTLM.res
 <<
 	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;2
 
@@ -266,7 +214,6 @@ CLEAN :
 	-@erase "*.manifest"
 	-@erase getaddrinfo.c
 	-@erase allockey.c
-	-@erase db_berkeley.c
 	-@erase db_lmdb.c
 	-@erase getnameinfo.c
 	-@erase plugin_common.h

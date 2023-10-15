@@ -61,11 +61,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include <sasl.h>
 #include <saslplug.h>
 #include <saslutil.h>
 #include <prop.h>
+
+#include <openssl/evp.h>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -138,9 +141,16 @@ const char *corrupt_types[] = {
     "CORRUPT_SIZE"
 };
 
-void fatal(char *str)
+void fatal(const char *str, ...)
 {
-    printf("Failed with: %s\n",str);
+    va_list ap;
+
+    va_start(ap, str);
+    printf("Failed with: ");
+    vprintf(str, ap);
+    printf("\n");
+    va_end(ap);
+
     exit(3);
 }
 
@@ -249,7 +259,12 @@ void *test_malloc(size_t size)
     
     if(out) {
 	new_data = malloc(sizeof(mem_info_t));
-	if(!new_data) return out;
+	if(!new_data) {
+		if(DETAILED_MEMORY_DEBUGGING)
+			fprintf(stderr,
+			    " MEM WARNING: realloc malloc(sizeof(mem_info_t)) failed!\n");
+		return out;
+	}
 
 	new_data->addr = out;
 	new_data->size = size;
@@ -288,7 +303,13 @@ void *test_realloc(void *ptr, size_t size)
 		"  MEM WARNING: reallocing something we never allocated!\n");
 
 	cur = malloc(sizeof(mem_info_t));
-	if(!cur) return out;
+	if(!cur) {
+		if(DETAILED_MEMORY_DEBUGGING) {
+			fprintf(stderr,
+			    " MEM WARNING: test_realloc malloc(sizeof(mem_info_t)) failed!\n");
+		}
+		return out;
+	}
 
 	cur->addr = out;
 	cur->size = size;
@@ -312,7 +333,13 @@ void *test_calloc(size_t nmemb, size_t size)
 
     if(out) {
 	new_data = malloc(sizeof(mem_info_t));
-	if(!new_data) return out;
+	if(!new_data) {
+		if(DETAILED_MEMORY_DEBUGGING) {
+			fprintf(stderr,
+			    " MEM WARNING: test_calloc malloc(sizeof(mem_info_t)) failed!\n");
+		}
+		return out;
+	}
 
 	new_data->addr = out;
 	new_data->size = size;
@@ -2142,15 +2169,6 @@ const sasl_security_properties_t force_des = {
     NULL	    
 };
 
-const sasl_security_properties_t force_rc4_56 = {
-    0,
-    56,
-    8192,
-    0,
-    NULL,
-    NULL	    
-};
-
 const sasl_security_properties_t force_3des = {
     0,
     112,
@@ -2287,22 +2305,21 @@ void testseclayer(char *mech, void *rock __attribute__((unused)))
     const char *txstring = "THIS IS A TEST";
     const char *out, *out2;
     char *tmp;
-    const sasl_security_properties_t *test_props[7] =
+    const sasl_security_properties_t *test_props[] =
                                           { &security_props,
 					    &force_3des,
-					    &force_rc4_56,
 					    &force_des,
 					    &int_only,
 					    &no_int,
-					    &disable_seclayer };
-    const unsigned num_properties = 7;
+					    &disable_seclayer,
+					    NULL };
     unsigned i;
     const sasl_ssf_t *this_ssf;
     unsigned outlen = 0, outlen2 = 0, totlen = 0;
     
     printf("%s --> security layer start\n", mech);
 
-    for(i=0; i<num_properties; i++) {
+    for(i=0; test_props[i] != NULL; i++) {
         
     /* Basic crash-tests (none should cause a crash): */
     result = doauth(mech, &sconn, &cconn, test_props[i], NULL, 1);
@@ -2312,7 +2329,7 @@ void testseclayer(char *mech, void *rock __attribute__((unused)))
 	cleanup_auth(&sconn, &cconn);
 	continue;
     } else if(result != SASL_OK) {
-	fatal("doauth failed in testseclayer");
+	fatal("doauth failed in testseclayer (1) %d", result);
     }
 
     if(sasl_getprop(cconn, SASL_SSF, (const void **)&this_ssf) != SASL_OK) {
@@ -2358,21 +2375,21 @@ void testseclayer(char *mech, void *rock __attribute__((unused)))
     cleanup_auth(&sconn, &cconn);
 
     /* Basic I/O Test */
-    if(doauth(mech, &sconn, &cconn, test_props[i], NULL, 0) != SASL_OK) {
-	fatal("doauth failed in testseclayer");
+    if((result = doauth(mech, &sconn, &cconn, test_props[i], NULL, 0)) != SASL_OK) {
+	fatal("doauth failed in testseclayer (2) %d", result);
     }
 
     result = sasl_encode(cconn, txstring, (unsigned) strlen(txstring),
 			 &out, &outlen);
     if(result != SASL_OK) {
-	fatal("basic sasl_encode failure");
+	fatal("basic sasl_encode failure %d", result);
     }
 
     result = sasl_decode(sconn, out, outlen, &out, &outlen);
     if(result != SASL_OK) {
-	fatal("basic sasl_decode failure");
-    }    
-    
+	fatal("basic sasl_decode failure %d", result);
+    }
+
     cleanup_auth(&sconn, &cconn);
 
     /* Split one block and reassemble */
@@ -2415,25 +2432,25 @@ void testseclayer(char *mech, void *rock __attribute__((unused)))
     cleanup_auth(&sconn, &cconn);
 
     /* Combine 2 blocks */
-    if(doauth(mech, &sconn, &cconn, test_props[i], NULL, 0) != SASL_OK) {
-	fatal("doauth failed in testseclayer");
+    if((result = doauth(mech, &sconn, &cconn, test_props[i], NULL, 0)) != SASL_OK) {
+	fatal("doauth failed in testseclayer (3) %d", result);
     }
 
     result = sasl_encode(cconn, txstring, (unsigned) strlen(txstring),
 			 &out, &outlen);
     if(result != SASL_OK) {
-	fatal("basic sasl_encode failure (3)");
+	fatal("basic sasl_encode failure (3) %d", result);
     }
 
     memcpy(buf, out, outlen);
 
     tmp = buf + outlen;
     totlen = outlen;
-    
+
     result = sasl_encode(cconn, txstring, (unsigned) strlen(txstring),
 			 &out, &outlen);
     if(result != SASL_OK) {
-	fatal("basic sasl_encode failure (4)");
+	fatal("basic sasl_encode failure (4) %d", result);
     }
 
     memcpy(tmp, out, outlen);
@@ -2454,14 +2471,14 @@ void testseclayer(char *mech, void *rock __attribute__((unused)))
     cleanup_auth(&sconn, &cconn);
 
     /* Combine 2 blocks with 1 split */
-    if(doauth(mech, &sconn, &cconn, test_props[i], NULL, 0) != SASL_OK) {
-	fatal("doauth failed in testseclayer");
+    if((result = doauth(mech, &sconn, &cconn, test_props[i], NULL, 0)) != SASL_OK) {
+	fatal("doauth failed in testseclayer (4) %d", result);
     }
 
     result = sasl_encode(cconn, txstring, (unsigned) strlen(txstring),
 			 &out, &outlen);
     if(result != SASL_OK) {
-	fatal("basic sasl_encode failure (3)");
+	fatal("basic sasl_encode failure (3) %d", result);
     }
 
     memcpy(buf, out, outlen);
@@ -2471,7 +2488,7 @@ void testseclayer(char *mech, void *rock __attribute__((unused)))
     result = sasl_encode(cconn, txstring, (unsigned) strlen(txstring),
 			 &out2, &outlen2);
     if(result != SASL_OK) {
-	fatal("basic sasl_encode failure (4)");
+	fatal("basic sasl_encode failure (4) %d", result);
     }
 
     memcpy(tmp, out2, 5);
@@ -2485,7 +2502,7 @@ void testseclayer(char *mech, void *rock __attribute__((unused)))
     if(result != SASL_OK) {
 	printf("Failed with: %s\n", sasl_errstring(result, NULL, NULL));
 	fatal("sasl_decode failure 1/2 (2 blocks, 1 split)");
-    }    
+    }
 
     memset(buf2, 0, 8192);
     memcpy(buf2, out, outlen);
@@ -2506,11 +2523,11 @@ void testseclayer(char *mech, void *rock __attribute__((unused)))
     }
 
     cleanup_auth(&sconn, &cconn);
-    
+
     } /* for each properties type we want to test */
-     
+
     printf("%s --> security layer OK\n", mech);
-    
+
 }
 
 
@@ -2708,7 +2725,7 @@ void create_ids(void)
 #ifdef DO_SASL_CHECKAPOP
     int i;
     const char challenge[] = "<1896.697170952@cyrus.andrew.cmu.edu>";
-    MD5_CTX ctx;
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     unsigned char digest[16];
     char digeststr[33];
 #endif
@@ -2760,10 +2777,10 @@ void create_ids(void)
 
     /* Test sasl_checkapop */
 #ifdef DO_SASL_CHECKAPOP
-    _sasl_MD5Init(&ctx);
-    _sasl_MD5Update(&ctx,(const unsigned char *)challenge,strlen(challenge));
-    _sasl_MD5Update(&ctx,(const unsigned char *)password,strlen(password));
-    _sasl_MD5Final(digest, &ctx);
+    EVP_DigestInit(ctx, EVP_md5());
+    EVP_DigestUpdate(ctx,(const unsigned char *)challenge,strlen(challenge));
+    EVP_DigestUpdate(ctx,(const unsigned char *)password,strlen(password));
+    EVP_DigestFinal(ctx, digest, NULL);
                             
     /* convert digest from binary to ASCII hex */
     for (i = 0; i < 16; i++)
@@ -2912,9 +2929,8 @@ void test_checkpass(void)
 void notes(void)
 {
     printf("NOTE:\n");
-    printf("-For KERBEROS_V4 must be able to read srvtab file (usually /etc/srvtab)\n");
     printf("-For GSSAPI must be able to read srvtab (/etc/krb5.keytab)\n");
-    printf("-For both KERBEROS_V4 and GSSAPI you must have non-expired tickets\n");
+    printf("-For GSSAPI you must have non-expired tickets\n");
     printf("-For OTP (w/OPIE) must be able to read/write opiekeys (/etc/opiekeys)\n");
     printf("-For OTP you must have a non-expired secret\n");
     printf("-Must be able to read sasldb, which needs to be setup with a\n");
@@ -2938,7 +2954,7 @@ void usage(void)
 
 int main(int argc, char **argv)
 {
-    char c;
+    int c;
     int random_tests = -1;
     int do_all = 0;
     int skip_do_correct = 0;

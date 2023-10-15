@@ -99,14 +99,14 @@ Plugins: SASL Mechanisms
 ------------------------
 
 The simplest types of plugins to understand are those which provide
-SASL mechanisms, such as CRAM-MD5, DIGEST-MD5, GSSAPI, PLAIN, SCRAM, SRP, and so on.
+SASL mechanisms, such as GSSAPI, PLAIN, SCRAM, SRP, and so on.
 These mechanisms take care of both server-side and client-side parts
 of the SASL negotiation.  If the given mechanism supports a security layer
 (that is, makes guarantees about privacy or integrity of data after the
 negotiation is complete), the plugin provides that functionality as well.
 
 SASL mechanisms are generally defined by the IETF standards process,
-however, some mechanisms are not (For example, NTLM).  This is in contrast
+however, some mechanisms are not.  This is in contrast
 to the other types of plugins, which provide database and username
 canonicalization services to other plugins and thus aren't standardized in
 their behavior (they are specific to our implementation).  Password verifiers
@@ -125,7 +125,7 @@ Password Verification Mechanisms
     of the password.
 Shared Secret Mechanisms
     For these mechanisms,
-    such as CRAM-MD5, DIGEST-MD5, OTP, SCRAM, and SRP,
+    such as OTP, SCRAM, and SRP,
     there is a shared secret between the server and client (e.g. a password).
     However, in this case the password itself does not travel on the wire.
     Instead, the client passes a server a token that proves that it knows

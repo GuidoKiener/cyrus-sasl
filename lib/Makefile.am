@@ -63,7 +63,7 @@ DLOPEN_C = dlopen.c
 endif
 
 common_headers = saslint.h
-common_sources = auxprop.c canonusr.c checkpw.c client.c common.c config.c external.c md5.c saslutil.c server.c seterror.c $(DLOPEN_C)
+common_sources = auxprop.c canonusr.c checkpw.c client.c common.c config.c external.c saslutil.c server.c seterror.c $(DLOPEN_C)
 
 LTLIBOBJS = @LTLIBOBJS@
 LIB_DOOR= @LIB_DOOR@
@@ -82,7 +82,7 @@ libobj_la_LIBADD = $(LTLIBOBJS)
 libsasl2_la_SOURCES = $(common_sources) $(common_headers)
 libsasl2_la_LDFLAGS = -version-info $(sasl_version) -no-undefined
 
-libsasl2_la_LIBADD = $(SASL_DL_LIB) $(SASL_STATIC_LIBS) $(LIB_SOCKET) $(LIB_DOOR) $(PLUGIN_COMMON_OBJS)
+libsasl2_la_LIBADD = $(SASL_DL_LIB) $(SASL_STATIC_LIBS) $(LIB_SOCKET) $(LIB_DOOR) $(PLUGIN_COMMON_OBJS) -lcrypto
 if BUILD_LIBOBJ
 libsasl2_la_LIBADD += libobj.la
 endif

@@ -137,7 +137,6 @@
     <ClCompile Include="..\lib\config.c" />
     <ClCompile Include="..\lib\external.c" />
     <ClCompile Include="..\lib\getsubopt.c" />
-    <ClCompile Include="..\lib\md5.c" />
     <ClCompile Include="..\lib\saslutil.c" />
     <ClCompile Include="..\lib\server.c" />
     <ClCompile Include="..\lib\seterror.c" />
@@ -154,17 +153,9 @@
     <ProjectReference Include="plugin_anonymous.vcxproj">
       <Project>{666d9377-c82c-4391-96bb-b9a5794fb9dd}</Project>
     </ProjectReference>
-    <ProjectReference Include="plugin_digestmd5.vcxproj">
-      <Project>{6e87064b-9a5e-4f05-a8fb-09fc72e9e3cc}</Project>
-    </ProjectReference>
-    <ProjectReference Include="plugin_ntlm.vcxproj">
-      <Project>{7d694002-b275-4895-a76e-a6ed345fd3c3}</Project>
     </ProjectReference>
     <ProjectReference Include="plugin_plain.vcxproj">
       <Project>{b8c5499f-bcb8-409c-8446-0d92de118020}</Project>
-    </ProjectReference>
-    <ProjectReference Include="plugin_login.vcxproj">
-      <Project>{6f556f64-fb73-4e7d-9908-eeba78d1592e}</Project>
     </ProjectReference>
     <ProjectReference Include="plugin_scram.vcxproj">
       <Project>{639d1c4b-acc5-40a4-a96b-731e7fc21ea7}</Project>

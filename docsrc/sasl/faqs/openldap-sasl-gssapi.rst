@@ -6,10 +6,10 @@ This article assumes that you have read and followed the SASL chapter of the `Op
 To verify that you have the Cyrus :ref:`GSSAPI <gssapi>` mechanism properly installed, use the pluginviewer command. For instance::
 
     server:~# pluginviewer  | grep -i gssapi
-     CRAM-MD5 PLAIN NTLM GSSAPI OTP DIGEST-MD5 ANONYMOUS LOGIN EXTERNAL
+     PLAIN GSSAPI OTP ANONYMOUS EXTERNAL
     Plugin "gssapiv2" [loaded],     API version: 4
            SASL mechanism: GSSAPI, best SSF: 56, supports setpass: no
-    CRAM-MD5 PLAIN NTLM GSSAPI OTP DIGEST-MD5 ANONYMOUS LOGIN EXTERNAL
+    PLAIN GSSAPI OTP ANONYMOUS EXTERNAL
     Plugin "gssapiv2" [loaded],     API version: 4
            SASL mechanism: GSSAPI, best SSF: 56
 
@@ -19,11 +19,8 @@ On your client system, search the Root DSE of the server to view advertised mech
 
     client:~# ldapsearch -LLL -x -H ldap://ldap.example.org -s "base" -b "" supportedSASLMechanisms
     dn:
-    supportedSASLMechanisms: DIGEST-MD5
-    supportedSASLMechanisms: NTLM
     supportedSASLMechanisms: GSSAPI
     supportedSASLMechanisms: OTP
-    supportedSASLMechanisms: CRAM-MD5
 
 If you received a No Such Object error, you may have an `ACL misconfiguration on your server <https://www.openldap.org/doc/admin24/appendix-common-errors.html#ldap_sasl_interactive_bind_s>`_.
 
@@ -36,7 +33,7 @@ For more control over how the SASL library operates within the OpenLDAP? server,
 For instance, if you create /usr/lib/sasl2/slapd.conf (assuming that is the correct location on your system) with the following contents::
 
     keytab: /etc/krb5.keytab-ldap
-    mech_list: CRAM-MD5 DIGEST-MD5 GSSAPI
+    mech_list: GSSAPI
 
 then the server will search within /etc/krb5.keytab-ldap when initializing the GSSAPI plugin. The server will only offer the mechanisms listed in mech_list. If mech_list is not specified, the server will offer all the mechanisms available, and that it can initialize.
 
@@ -47,11 +44,8 @@ Once you have verified that the server is advertising GSSAPI support, then try::
     SASL username: host/client.example.org@EXAMPLE.ORG
     SASL SSF: 56 SASL data security layer installed.
     dn:
-    supportedSASLMechanisms: DIGEST-MD5
-    supportedSASLMechanisms: NTLM
     supportedSASLMechanisms: GSSAPI
     supportedSASLMechanisms: OTP
-    supportedSASLMechanisms: CRAM-MD5
 
 If you receive a list of mechanisms, then congratulations, you're done.
 

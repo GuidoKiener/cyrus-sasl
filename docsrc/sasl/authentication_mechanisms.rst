@@ -14,32 +14,6 @@ This mechanism does not require the client to authenticate or provide any inform
 
 Defined in :rfc:`2245`
 
-.. _MECH-CRAM-MD5:
-
-CRAM-MD5
---------
-
-This mechanism avoids sending the users password over the network in plain text by hashing the password with a server provided random value (known as a nonce).
-A disadvantage of this mechanism is that the server must maintain a database of **plaintext passwords** for comparison.
-
-CRAM-MD5 does not provide adequate security services for use on the Internet, it does not protect the user's authentication identifier from eavesdroppers and is subject to a number of passive and active attacks.
-
-Defined in :rfc:`2195`
-
-Documented in a `RFC Draft: draft-ietf-sasl-crammd5 <https://tools.ietf.org/html/draft-ietf-sasl-crammd5>`_
-
-.. warning::
-   The CRAM-MD5 SASL mechanism is obsolete. It has been moved to Historic in `draft-ietf-sasl-crammd5-to-historic <https://tools.ietf.org/html/draft-ietf-sasl-crammd5-to-historic-00>`_
-
-DIGEST-MD5
-----------
-
-This mechanism improves upon the :ref:`MECH-CRAM-MD5` mechanism by avoiding the need for the server to store plaintext passwords.
-With digest authentication the server needs to store the **MD5 digest** of the users password which helps to make the system more secure.
-As in :ref:`MECH-CRAM-MD5` the password is hashed with a server nonce and other data before being transmitted across the network.
-
-Defined in :rfc:`2831`
-
 EXTERNAL
 --------
 
@@ -77,18 +51,6 @@ GSS-SPNEGO
 This is a Microsoft specific customization of GSSAPI.
 
 Described in the `Microsoft documentation <https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/e1cbe214-d73b-4c58-aad2-bee399ccdfb8>`_ and :rfc:`4178`
-
-LOGIN
------
-
-Documented in a `RFC Draft: draft-murchison-sasl-login <https://tools.ietf.org/html/draft-murchison-sasl-login>`_
-
-.. warning::
-   The LOGIN SASL mechanism is obsoleted in favor of the :ref:`MECH-PLAIN` SASL mechanism.
-
-The LOGIN SASL mechanism does not provide a security layer.
-This mechanism must not be used without adequate security protection as
-the mechanism affords no integrity nor confidentiality protection itself.
 
 OTP
 ---
@@ -171,10 +133,6 @@ of the mechanisms provided by the Cyrus SASL Library.
 +-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+
 | ANONYMOUS   | 0       | X       |          |        |         |        |      |        | X         |              |          |       |      |      |
 +-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+
-| CRAM-MD5    | 0       | X       |          |        |         | X      |      |        |           | X            |          |       |      |      |
-+-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+
-| DIGEST-MD5  | 128     | X       |          |        |         | X      |      | X      | reauth    | initial auth | X        | X     |      | X    |
-+-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+
 | EXTERNAL    | 0       | X       |          | X      |         | X      |      |        | X         |              |          | X     |      |      |
 +-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+
 | GS2         | 56      | X       | X        |        |         | X      |      | X      | X         |              | X        | X     | X    |      |
@@ -182,8 +140,6 @@ of the mechanisms provided by the Cyrus SASL Library.
 | GSSAPI      | 56      | X       | X        |        |         | X      | X    | X      | X         |              |          | X     | X    |      |
 +-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+
 | GSS-SPNEGO  | 56      | X       | X        |        |         | X      | X    | X      | X         |              |          | X     |      | X    |
-+-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+
-| LOGIN       | 0       |         |          |        |         | X      | X    |        |           | X            |          |       |      |      |
 +-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+
 | OTP         | 0       | X       |          |        | X       | X      |      |        | X         |              |          | X     |      |      |
 +-------------+---------+---------+----------+--------+---------+--------+------+--------+-----------+--------------+----------+-------+------+------+

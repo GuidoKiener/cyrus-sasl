@@ -13,18 +13,16 @@ endif
 
 saslauthd_SOURCES = mechanisms.c globals.h \
 		    mechanisms.h auth_dce.c auth_dce.h auth_getpwent.c \
-		    auth_getpwent.h auth_krb5.c auth_krb5.h auth_krb4.c \
-		    auth_krb4.h auth_pam.c auth_pam.h auth_rimap.c auth_httpform.c \
+		    auth_getpwent.h auth_krb5.c auth_krb5.h \
+		    auth_pam.c auth_pam.h auth_rimap.c auth_httpform.c \
 		    auth_rimap.h auth_shadow.c auth_shadow.h auth_sia.c auth_httpform.h \
 		    auth_sia.h auth_sasldb.c auth_sasldb.h lak.c lak.h \
 		    auth_ldap.c auth_ldap.h cache.c cache.h cfile.c cfile.h \
-		    krbtf.c krbtf.h utils.c utils.h \
-                    ipc_unix.c ipc_doors.c saslauthd-main.c saslauthd-main.h \
-		    md5.c saslauthd_md5.h
+		    utils.c utils.h \
+            ipc_unix.c ipc_doors.c saslauthd-main.c saslauthd-main.h
 saslauthd_DEPENDENCIES = saslauthd-main.o $(LTLIBOBJS_FULL)
-saslauthd_LDADD	= @SASL_KRB_LIB@ \
-		  @GSSAPIBASE_LIBS@ @LIB_CRYPT@ @LIB_SIA@ \
-		  @LIB_SOCKET@ @SASL_DB_LIB@ @LIB_PAM@ @LDAP_LIBS@ $(LTLIBOBJS_FULL) $(CRYPTO_COMPAT_OBJS) $(LIBSASLDB_OBJS)
+saslauthd_LDADD	= @GSSAPIBASE_LIBS@ @LIB_CRYPT@ @LIB_SIA@ \
+		  @LIB_SOCKET@ @SASL_DB_LIB@ @LIB_PAM@ @LDAP_LIBS@ $(LTLIBOBJS_FULL) $(CRYPTO_COMPAT_OBJS) $(LIBSASLDB_OBJS) -lcrypto
 
 testsaslauthd_SOURCES = testsaslauthd.c utils.c
 testsaslauthd_LDADD = @LIB_SOCKET@
@@ -32,7 +30,7 @@ testsaslauthd_LDADD = @LIB_SOCKET@
 saslcache_SOURCES = saslcache.c
 
 EXTRA_DIST	= testsaslauthd.8 saslauthd.mdoc include \
-		  LDAP_SASLAUTHD
+		  LDAP_SASLAUTHD README.cache README.ipc
 AM_CPPFLAGS	= -I$(top_srcdir)/include -I$(top_builddir)/include -I$(top_builddir)/common -I$(top_srcdir)/common
 DEFS            = @DEFS@ -DSASLAUTHD_CONF_FILE_DEFAULT=\"@sysconfdir@/saslauthd.conf\" -I. -I$(srcdir) -I..
 

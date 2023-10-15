@@ -42,15 +42,15 @@
 #
 ################################################################
 
-all_sasl_libs = ../lib/libsasl2.la $(SASL_DB_LIB) $(LIB_SOCKET)
-all_sasl_static_libs = ../lib/.libs/libsasl2.a $(SASL_DB_LIB) $(LIB_SOCKET) $(GSSAPIBASE_LIBS) $(GSSAPI_LIBS) $(SASL_KRB_LIB) $(LIB_DES) $(PLAIN_LIBS) $(SRP_LIBS) $(LIB_MYSQL) $(LIB_PGSQL) $(LIB_SQLITE)
+all_sasl_libs = ../lib/libsasl2.la $(SASL_DB_LIB) $(LIB_SOCKET) -lcrypto
+all_sasl_static_libs = ../lib/.libs/libsasl2.a $(SASL_DB_LIB) $(LIB_SOCKET) $(GSSAPIBASE_LIBS) $(GSSAPI_LIBS) $(LIB_DES) $(PLAIN_LIBS) $(SRP_LIBS) $(LIB_MYSQL) $(LIB_PGSQL) $(LIB_SQLITE) -lcrypto
 
 sbin_PROGRAMS = @SASL_DB_UTILS@ @SMTPTEST_PROGRAM@ pluginviewer
 EXTRA_PROGRAMS = saslpasswd2 sasldblistusers2 testsuite testsuitestatic smtptest pluginviewer
 
 noinst_PROGRAMS = dbconverter-2
 
-man_MANS = $(SASL_DB_MANS) pluginviewer.8
+man_MANS = $(SASL_DB_MANS) saslpasswd2.8 pluginviewer.8
 
 saslpasswd2_LDADD = ../sasldb/libsasldb.la $(all_sasl_libs)
 saslpasswd2_SOURCES = saslpasswd.c
@@ -89,9 +89,9 @@ libsfsasl2_la_SOURCES =
 libsfsasl2_la_LIBADD = sfsasl.lo
 libsfsasl2_la_LDFLAGS = -version-info 1:0:0 -export-dynamic -rpath $(libdir)
 
-AM_CPPFLAGS=-DLIBSASL_EXPORTS=1 -I$(top_srcdir)/include -I$(top_builddir)/include @SASL_DB_INC@ -DPLUGINDIR='"${plugindir}"'
+AM_CPPFLAGS=-DLIBSASL_EXPORTS=1 -I$(top_srcdir)/include -I$(top_builddir)/include @SASL_DB_INC@
 
-EXTRA_DIST = saslpasswd2.8 sasldblistusers2.8 pluginviewer.8 sfsasl.h sfsasl.c smtptest.c testsuite.c pluginviewer.c NTMakefile
+EXTRA_DIST = saslpasswd2.8 sasldbconverter2.8 sasldblistusers2.8 sasltestsuite.8 pluginviewer.8 sfsasl.h sfsasl.c smtptest.c testsuite.c pluginviewer.c NTMakefile
 
 sfsasl.lo: sfsasl.c
 	$(LIBTOOL) --mode=compile $(COMPILE) @SFIO_INC_FLAGS@ -c $(srcdir)/sfsasl.c

@@ -63,7 +63,7 @@ Example
 
 may give the following string as a result:
 
-    `(ANONYMOUS,KERBEROS_V4,DIGEST‐MD5)`
+    `(ANONYMOUS,GSSAPI)`
 
 Return Value
 ============

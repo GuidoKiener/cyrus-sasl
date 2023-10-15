@@ -1,29 +1,19 @@
 dnl Functions to check what database to use for libsasldb
 
-dnl Berkeley DB specific checks first..
+dnl LMDB specific checks first..
 
 dnl Figure out what database type we're using
 AC_DEFUN([SASL_DB_CHECK], [
 cmu_save_LIBS="$LIBS"
 AC_ARG_WITH(dblib,
-  [AC_HELP_STRING([--with-dblib={berkeley|gdbm|lmdb|ndbm|none|auto_detect}],
-  [set the DB library to use [[berkeley]]])],
+  [AC_HELP_STRING([--with-dblib={gdbm|lmdb|ndbm|none|auto_detect}],
+  [set the DB library to use [[lmdb]]])],
   dblib=$withval,
   dblib=auto_detect)
-
-CYRUS_BERKELEY_DB_OPTS()
 
 SASL_DB_LIB=""
 
 case "$dblib" in
-dnl this is unbelievably painful due to confusion over what db-3 should be
-dnl named.  arg.
-  berkeley)
-	CYRUS_BERKELEY_DB_CHK()
-	CPPFLAGS="${CPPFLAGS} ${BDB_INCADD}"
-	SASL_DB_INC=$BDB_INCADD
-	SASL_DB_LIB="${BDB_LIBADD}"
-	;;
   gdbm)
 	AC_ARG_WITH(gdbm,[  --with-gdbm=PATH        use gdbm from PATH],
                     with_gdbm="${withval}")
@@ -59,14 +49,10 @@ dnl named.  arg.
 				dblib="no")
 	;;
   auto_detect)
-        dnl How about berkeley db?
-	CYRUS_BERKELEY_DB_CHK()
-	if test "$dblib" = no; then
-	  dnl How about OpenLDAP's lmdb?
-      AC_CHECK_HEADER(lmdb.h, [
-		AC_CHECK_LIB(lmdb, mdb_env_create, SASL_DB_LIB="-llmdb"; enable_keep_db_open=yes, dblib="no")],
+	dnl How about OpenLDAP's lmdb?
+    AC_CHECK_HEADER(lmdb.h, [
+		AC_CHECK_LIB(lmdb, mdb_env_create, SASL_DB_LIB="-llmdb"; dblib="lmdb"; enable_keep_db_open=yes, dblib="no")],
 		dblib="no")
-	fi
 	if test "$dblib" = no; then
 	  dnl How about ndbm?
 	  AC_CHECK_HEADER(ndbm.h, [
@@ -86,11 +72,6 @@ dnl named.  arg.
 					     SASL_DB_LIB="-lgdbm", dblib="no")],
   			     dblib="no")
 	  fi
-	else
-	  dnl we took Berkeley
-	  CPPFLAGS="${CPPFLAGS} ${BDB_INCADD}"
-	  SASL_DB_INC=$BDB_INCADD
-          SASL_DB_LIB="${BDB_LIBADD}"
 	fi
 	;;
   none)
@@ -99,7 +80,7 @@ dnl named.  arg.
 	;;
   *)
 	AC_MSG_WARN([Bad DB library implementation specified;])
-	AC_ERROR([Use either \"berkeley\", \"gdbm\", \"lmdb\", \"ndbm\" or \"none\"])
+	AC_ERROR([Use either \"gdbm\", \"lmdb\", \"ndbm\" or \"none\"])
 	dblib=no
 	;;
 esac
@@ -126,10 +107,6 @@ case "$dblib" in
   ndbm)
     SASL_MECHS="$SASL_MECHS libsasldb.la"
     AC_DEFINE(SASL_NDBM,[],[Use NDBM for SASLdb])
-    ;;
-  berkeley)
-    SASL_MECHS="$SASL_MECHS libsasldb.la"
-    AC_DEFINE(SASL_BERKELEYDB,[],[Use BerkeleyDB for SASLdb])
     ;;
   *)
     AC_MSG_WARN([Disabling SASL authentication database support])

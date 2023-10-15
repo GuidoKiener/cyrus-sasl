@@ -59,7 +59,7 @@
  *  sasl_server_step  Perform one authentication exchange step
  *  sasl_checkpass    Check a plaintext passphrase
  *  sasl_checkapop    Check an APOP challenge/response (uses pseudo "APOP"
- *                    mechanism similar to CRAM-MD5 mechanism; optional)
+ *                    mechanism; optional)
  *  sasl_user_exists  Check if user exists
  *  sasl_setpass      Change a password or add a user entry
  *  sasl_auxprop_request  Request auxiliary properties
@@ -290,7 +290,7 @@ typedef unsigned sasl_ssf_t;
 
 /* These are the various security flags apps can specify. */
 /* NOPLAINTEXT          -- don't permit mechanisms susceptible to simple
- *                         passive attack (e.g., PLAIN, LOGIN)
+ *                         passive attack (e.g., PLAIN)
  * NOACTIVE             -- protection from active (non-dictionary) attacks
  *                         during authentication exchange.
  *                         Authenticates server.

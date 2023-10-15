@@ -120,6 +120,22 @@ GSSAPI
    Default: None, if omitted, no credentials cache/delegation and if left
    empty or invalid KRB5CCNAME will be used.
 
+.. option:: ad_compat [yes | no]
+
+   When set to 'yes', 'on', '1' or 'true', a client will request both
+   confidentiality and integrity when required by Active Directory.
+
+   Default: no
+
+.. option:: service_principal [<GSS_C_NT_HOSTBASED_SERVICE> | *]
+
+   Service principal to use when accepting a connection as a server. The
+   principal name must be in GSS_C_NT_HOSTBASED_SERVICE form, e.g.
+   "someservice@someinstance" or "someservice", or the string "*", which
+   causes the server to accept any valid principal present in its keytab.
+
+   Default: <SASL Service Name>@<Server FQDN>
+
 LDAPDB
 ======
 
@@ -209,7 +225,7 @@ Examples
    ldapdb_uri: ldap://ldap.example.com
    ldapdb_id: root
    ldapdb_pw: secret
-   ldapdb_mech: DIGEST-MD5
+   ldapdb_mech: SCRAM-SHA-512
    ldapdb_canon_attr: uid
 
 The LDAP server must be configured to map the SASL authcId "root" into a DN
@@ -236,22 +252,6 @@ stored.  The slapd.conf will need to map these usernames to LDAP DNs:
    sasl-regexp uid=(.*),cn=external,cn=auth
        ldap:///dc=example,dc=com??sub?(uid=$1)
 
-NTLM
-====
-
-.. option:: ntlm_server [<list of server names>]
-
-   Comma separated list of servernames (WinNT, Win2K, Samba, etc) to
-   which authentication will be proxied.
-
-   Default: empty - perform authentication internally
-
-.. option:: ntlm_v2 [yes|no]
-
-   (Client) Send NTLMv2 responses to the server.
-
-   Default: no (send NTLMv1)
-
 OTP
 ===
 
@@ -266,16 +266,6 @@ OTP
    (Without opie) Message digest algorithm for one-time passwords, used by sasl_setpass
 
    Default: md5
-
-Digest-md5
-==========
-
-.. option:: reauth_timeout [<minutes>]
-
-   Length in time (in minutes) that authentication info will be
-   cached for a fast reauth.  A value of 0 will disable reauth.
-
-   Default: 0 - reauth disabled.
 
 SASLDB
 ======
