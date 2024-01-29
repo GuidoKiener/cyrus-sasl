@@ -668,6 +668,22 @@ typedef int sasl_canon_user_t(sasl_conn_t *conn,
 
 #define SASL_CB_CANON_USER (0x8007)
 
+/* callback to change channel binding type (e.g. "tls-end-point-server")
+ * of the server.  The callback is used by plugins like SCRAM-SHA-*-PLUS or
+ * GS2-KRB5-PLUS when the desired binding type of the client does not match
+ * the binding type set with property SASL_CHANNEL_BINDING. A server should
+ * check the requested 'cbindingname' of the 'plugin' and overwrite the
+ * channel binding data of property SASL_CHANNEL_BINDING within the callback
+ * function.
+ *  plugin        -- name of plugin
+ *  cbindingname  -- name of desired channel binding type
+ */
+typedef int sasl_server_channel_binding_t(sasl_conn_t* conn,
+					  void* context,
+					  const char* plugin,
+					  const char* cbindingname);
+#define SASL_CB_SERVER_CHANNEL_BINDING (0x8008)
+
 /**********************************
  * Common Client/server functions *
  **********************************/
